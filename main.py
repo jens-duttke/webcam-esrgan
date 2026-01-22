@@ -117,7 +117,9 @@ class PreviewState:
                 canvas = np.zeros((window_height, window_width, 3), dtype=np.uint8)
                 x_offset = (window_width - new_width) // 2
                 y_offset = (window_height - new_height) // 2
-                canvas[y_offset : y_offset + new_height, x_offset : x_offset + new_width] = resized
+                canvas[
+                    y_offset : y_offset + new_height, x_offset : x_offset + new_width
+                ] = resized
 
                 cv2.imshow(self.window_name, canvas)
         except cv2.error:

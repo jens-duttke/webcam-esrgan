@@ -27,4 +27,4 @@ realesrgan>=0.3.0
 basicsr>=1.4.2
 
 # Development dependencies (optional)
-# pip install pytest pytest-cov ruff mypy
+# pip install pytest pytest-cov ruff mypy types-tqdm

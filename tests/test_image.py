@@ -215,15 +215,11 @@ class TestSaveImages:
         """Test that multiple saves create multiple timestamped files."""
         # First save with explicit capture_time
         capture_time_1 = datetime(2026, 1, 21, 10, 0, 0)
-        _, _, path1 = save_images(
-            test_image, test_image, image_config, capture_time_1
-        )
+        _, _, path1 = save_images(test_image, test_image, image_config, capture_time_1)
 
         # Second save with different capture_time
         capture_time_2 = datetime(2026, 1, 21, 10, 1, 0)
-        _, _, path2 = save_images(
-            test_image, test_image, image_config, capture_time_2
-        )
+        _, _, path2 = save_images(test_image, test_image, image_config, capture_time_2)
 
         assert path1.name != path2.name
         assert path1.exists()
