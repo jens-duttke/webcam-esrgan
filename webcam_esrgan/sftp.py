@@ -94,7 +94,7 @@ class SFTPUploader:
             filename = entry.filename
 
             # Only process timestamped webcam files
-            if not filename.startswith("webcam_") or filename == "webcam_current.jpg":
+            if not filename.startswith("webcam_") or filename.startswith("webcam_current."):
                 continue
             if not (filename.endswith(".avif") or filename.endswith(".jpg")):
                 continue
@@ -119,7 +119,8 @@ class SFTPUploader:
 
         for entry in sftp.listdir(remote_dir):
             is_history_file = (
-                entry.startswith("webcam_") and entry != "webcam_current.jpg"
+                entry.startswith("webcam_")
+                and not entry.startswith("webcam_current.")
             )
             is_image = entry.endswith(".avif") or entry.endswith(".jpg")
             if is_history_file and is_image:

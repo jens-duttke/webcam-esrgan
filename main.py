@@ -184,12 +184,18 @@ def main() -> int:
                 enhanced = enhancer.enhance(frame)
 
                 if enhanced is not None:
-                    # Add timestamp overlay
-                    final = add_timestamp(enhanced, config.timestamp_format)
+                    # Add timestamp overlay for history
+                    with_timestamp = add_timestamp(enhanced, config.timestamp_format)
+
+                    # Current files: with or without timestamp based on config
+                    if config.timestamp_on_current:
+                        current_image = with_timestamp
+                    else:
+                        current_image = enhanced
 
                     # Save images
                     current_jpg, current_avif, timestamped = save_images(
-                        final, config.image
+                        current_image, with_timestamp, config.image
                     )
 
                     # Upload via SFTP

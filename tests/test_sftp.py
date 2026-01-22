@@ -156,6 +156,7 @@ class TestSFTPUploader:
             assert "webcam_2026-01-20-11-00.avif" in write_call
             assert "webcam_2026-01-20-12-00.avif" in write_call
             assert "webcam_current.jpg" not in write_call
+            assert "webcam_current.avif" not in write_call
             assert "other_file.txt" not in write_call
 
     def test_sftp_client_none_returns_false(
