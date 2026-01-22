@@ -7,7 +7,59 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from webcam_esrgan.enhance import Enhancer, _apply_torchvision_workaround
+from webcam_esrgan.enhance import (
+    Enhancer,
+    _apply_torchvision_workaround,
+    _download_file,
+)
+
+
+class TestDownloadFile:
+    """Tests for the _download_file helper function."""
+
+    def test_download_with_certifi(self, tmp_path: Path) -> None:
+        """Test download using certifi SSL context."""
+        mock_certifi = MagicMock()
+        mock_certifi.where.return_value = "/path/to/cacert.pem"
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"test data"
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+
+        dest = tmp_path / "test_file"
+
+        with (
+            patch.dict(sys.modules, {"certifi": mock_certifi}),
+            patch("webcam_esrgan.enhance.ssl.create_default_context") as mock_ssl,
+            patch("urllib.request.urlopen", return_value=mock_response) as mock_urlopen,
+        ):
+            _download_file("https://example.com/file", dest)
+
+            mock_certifi.where.assert_called_once()
+            mock_ssl.assert_called_once_with(cafile="/path/to/cacert.pem")
+            mock_urlopen.assert_called_once()
+            assert dest.read_bytes() == b"test data"
+
+    def test_download_fallback_without_certifi(self, tmp_path: Path) -> None:
+        """Test download falls back to system certs if certifi not available."""
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"test data"
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+
+        dest = tmp_path / "test_file"
+
+        # Remove certifi from sys.modules to force ImportError
+        with (
+            patch.dict(sys.modules, {"certifi": None}),
+            patch("webcam_esrgan.enhance.ssl.create_default_context") as mock_ssl,
+            patch("urllib.request.urlopen", return_value=mock_response),
+        ):
+            _download_file("https://example.com/file", dest)
+
+            # Should call create_default_context without cafile argument
+            mock_ssl.assert_called_once_with()
 
 
 class TestTorchvisionWorkaround:
@@ -134,11 +186,11 @@ class TestEnhancerInitialize:
         """Test that model is downloaded if not present."""
         mock_torch = MagicMock()
         mock_torch.cuda.is_available.return_value = False
-        mock_urlretrieve = MagicMock()
+        mock_download = MagicMock()
 
         with (
             patch("webcam_esrgan.enhance._apply_torchvision_workaround"),
-            patch("urllib.request.urlretrieve", mock_urlretrieve),
+            patch("webcam_esrgan.enhance._download_file", mock_download),
             patch.dict(
                 sys.modules,
                 {
@@ -151,8 +203,8 @@ class TestEnhancerInitialize:
             # Model file doesn't exist, should trigger download
             enhancer.initialize()
 
-            mock_urlretrieve.assert_called_once()
-            call_args = mock_urlretrieve.call_args[0]
+            mock_download.assert_called_once()
+            call_args = mock_download.call_args[0]
             assert call_args[0] == Enhancer.MODEL_URL
 
     def test_initialize_with_cuda(self, enhancer: Enhancer) -> None:

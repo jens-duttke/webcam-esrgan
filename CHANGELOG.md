@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Excluded `webcam_current.avif` from `webcam_log.json` (only history files should be listed)
+- SSL certificate verification error on Windows when downloading Real-ESRGAN model (now uses certifi)
 
 ## [1.0.0] - 2026-01-21
 

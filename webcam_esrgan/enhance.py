@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ssl
 import sys
 import time
 import traceback
@@ -15,6 +16,30 @@ from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from realesrgan import RealESRGANer
+
+
+def _download_file(url: str, dest: Path) -> None:
+    """
+    Downloads a file with proper SSL certificate handling.
+
+    Uses certifi certificates if available, falls back to system certificates.
+
+    Args:
+        url: URL to download from.
+        dest: Destination file path.
+    """
+    try:
+        import certifi
+
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ssl_context = ssl.create_default_context()
+
+    with (
+        urllib.request.urlopen(url, context=ssl_context) as response,
+        open(dest, "wb") as out_file,
+    ):
+        out_file.write(response.read())
 
 
 def _apply_torchvision_workaround() -> None:
@@ -92,7 +117,7 @@ class Enhancer:
             # Download model if not present
             if not model_path.exists():
                 print("Downloading model (one-time, ~5MB)...")
-                urllib.request.urlretrieve(self.MODEL_URL, str(model_path))
+                _download_file(self.MODEL_URL, model_path)
                 print("Model downloaded!")
 
             # Network architecture for realesr-general-x4v3
