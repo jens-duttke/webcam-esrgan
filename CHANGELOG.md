@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Timestamp overlay now only on JPEG files; AVIF files are saved without overlay
+- Python version requirement restricted to 3.10-3.12 (basicsr incompatible with 3.13+)
 
 ### Fixed
 

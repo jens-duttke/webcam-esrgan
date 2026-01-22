@@ -15,7 +15,7 @@ Captures snapshots from IP cameras and enhances image quality using Real-ESRGAN 
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10-3.12 (3.13+ has compatibility issues with basicsr)
 - IP camera with HTTP snapshot API (tested with Reolink)
 
 ## Installation
