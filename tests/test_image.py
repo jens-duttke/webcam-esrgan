@@ -92,7 +92,7 @@ class TestSaveImages:
         output_dir = Path(image_config.output_dir)
         assert not output_dir.exists()
 
-        save_images(test_image, image_config)
+        save_images(test_image, test_image, image_config)
 
         assert output_dir.exists()
         assert output_dir.is_dir()
@@ -101,7 +101,9 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that correct paths are returned."""
-        current_jpg, current_avif, timestamped = save_images(test_image, image_config)
+        current_jpg, current_avif, timestamped = save_images(
+            test_image, test_image, image_config
+        )
 
         assert current_jpg.name == "webcam_current.jpg"
         assert current_avif.name == "webcam_current.avif"
@@ -112,7 +114,7 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that JPEG file is created."""
-        current_jpg, _, _ = save_images(test_image, image_config)
+        current_jpg, _, _ = save_images(test_image, test_image, image_config)
 
         assert current_jpg.exists()
         assert current_jpg.stat().st_size > 0
@@ -121,7 +123,7 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that current AVIF file is created."""
-        _, current_avif, _ = save_images(test_image, image_config)
+        _, current_avif, _ = save_images(test_image, test_image, image_config)
 
         assert current_avif.exists()
         assert current_avif.stat().st_size > 0
@@ -130,7 +132,7 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that timestamped AVIF file is created."""
-        _, _, timestamped = save_images(test_image, image_config)
+        _, _, timestamped = save_images(test_image, test_image, image_config)
 
         assert timestamped.exists()
         assert timestamped.stat().st_size > 0
@@ -139,7 +141,7 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that saved JPEG can be read back."""
-        current_jpg, _, _ = save_images(test_image, image_config)
+        current_jpg, _, _ = save_images(test_image, test_image, image_config)
 
         loaded = cv2.imread(str(current_jpg))
 
@@ -150,7 +152,7 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that timestamped filename follows expected format."""
-        _, _, timestamped = save_images(test_image, image_config)
+        _, _, timestamped = save_images(test_image, test_image, image_config)
 
         # Format: webcam_YYYY-MM-DD-HH-MM.avif
         name = timestamped.stem  # webcam_2026-01-21-12-00
@@ -169,13 +171,17 @@ class TestSaveImages:
         """Test that current files are overwritten on subsequent saves."""
         # First save with black image
         black_image = np.zeros((480, 640, 3), dtype=np.uint8)
-        current_jpg_1, current_avif_1, _ = save_images(black_image, image_config)
+        current_jpg_1, current_avif_1, _ = save_images(
+            black_image, black_image, image_config
+        )
         jpg_content_1 = current_jpg_1.read_bytes()
         avif_content_1 = current_avif_1.read_bytes()
 
         # Second save with white image
         white_image = np.ones((480, 640, 3), dtype=np.uint8) * 255
-        current_jpg_2, current_avif_2, _ = save_images(white_image, image_config)
+        current_jpg_2, current_avif_2, _ = save_images(
+            white_image, white_image, image_config
+        )
         jpg_content_2 = current_jpg_2.read_bytes()
         avif_content_2 = current_avif_2.read_bytes()
 
@@ -194,11 +200,11 @@ class TestSaveImages:
 
             # First save
             mock_datetime.now.return_value = datetime(2026, 1, 21, 10, 0, 0)
-            _, _, path1 = save_images(test_image, image_config)
+            _, _, path1 = save_images(test_image, test_image, image_config)
 
             # Second save (different time)
             mock_datetime.now.return_value = datetime(2026, 1, 21, 10, 1, 0)
-            _, _, path2 = save_images(test_image, image_config)
+            _, _, path2 = save_images(test_image, test_image, image_config)
 
             assert path1.name != path2.name
             assert path1.exists()
@@ -213,7 +219,7 @@ class TestSaveImages:
             jpeg_quality=95,
             output_dir=str(tmp_path / "high"),
         )
-        high_path, _, _ = save_images(test_image, high_config)
+        high_path, _, _ = save_images(test_image, test_image, high_config)
         high_size = high_path.stat().st_size
 
         # Low quality
@@ -221,7 +227,7 @@ class TestSaveImages:
             jpeg_quality=30,
             output_dir=str(tmp_path / "low"),
         )
-        low_path, _, _ = save_images(test_image, low_config)
+        low_path, _, _ = save_images(test_image, test_image, low_config)
         low_size = low_path.stat().st_size
 
         # High quality should be larger

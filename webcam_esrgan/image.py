@@ -66,14 +66,16 @@ def add_timestamp(
 
 
 def save_images(
-    image: NDArray[np.uint8],
+    image_with_timestamp: NDArray[np.uint8],
+    image_without_timestamp: NDArray[np.uint8],
     config: ImageConfig,
 ) -> tuple[Path, Path, Path]:
     """
-    Saves the image as JPEG and AVIF (current) plus AVIF (timestamped).
+    Saves the image as JPEG (with timestamp) and AVIF files (without timestamp).
 
     Args:
-        image: Input BGR image.
+        image_with_timestamp: Image with timestamp overlay (for JPEG).
+        image_without_timestamp: Image without timestamp overlay (for AVIF files).
         config: Image quality configuration.
 
     Returns:
@@ -94,19 +96,22 @@ def save_images(
     timestamped_path = output_dir / timestamped_filename
 
     # Convert BGR (OpenCV) to RGB (Pillow)
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    pil_image = Image.fromarray(image_rgb)
+    jpg_rgb = cv2.cvtColor(image_with_timestamp, cv2.COLOR_BGR2RGB)
+    pil_jpg = Image.fromarray(jpg_rgb)
 
-    # Save current image as optimized JPEG
-    pil_image.save(
+    avif_rgb = cv2.cvtColor(image_without_timestamp, cv2.COLOR_BGR2RGB)
+    pil_avif = Image.fromarray(avif_rgb)
+
+    # Save current image as optimized JPEG (with timestamp)
+    pil_jpg.save(
         current_jpg_path,
         "JPEG",
         quality=config.jpeg_quality,
         optimize=True,
     )
 
-    # Save current image as AVIF
-    pil_image.save(
+    # Save current image as AVIF (without timestamp)
+    pil_avif.save(
         current_avif_path,
         "AVIF",
         quality=config.avif_quality,
@@ -114,8 +119,8 @@ def save_images(
         subsampling=config.avif_subsampling,
     )
 
-    # Save timestamped image as AVIF
-    pil_image.save(
+    # Save timestamped history image as AVIF (without timestamp overlay)
+    pil_avif.save(
         timestamped_path,
         "AVIF",
         quality=config.avif_quality,
