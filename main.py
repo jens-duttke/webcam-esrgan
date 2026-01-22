@@ -223,7 +223,7 @@ def main() -> int:
         tile_size=config.tile_size,
         max_downscale_factor=config.max_downscale_factor,
     )
-    sftp = SFTPUploader(config.sftp, config.retention_days)
+    sftp = SFTPUploader(config.sftp, config.retention_days, config.capture_interval)
 
     # Initialize Real-ESRGAN
     if not enhancer.initialize():

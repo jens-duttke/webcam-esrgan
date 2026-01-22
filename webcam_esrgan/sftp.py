@@ -15,16 +15,23 @@ from webcam_esrgan.config import SFTPConfig
 class SFTPUploader:
     """Handles SFTP upload, cleanup, and log management."""
 
-    def __init__(self, config: SFTPConfig, retention_days: int = 7) -> None:
+    def __init__(
+        self,
+        config: SFTPConfig,
+        retention_days: int = 7,
+        capture_interval: int = 1,
+    ) -> None:
         """
         Initializes the SFTP uploader.
 
         Args:
             config: SFTP connection settings.
             retention_days: Days to keep old images before cleanup.
+            capture_interval: Interval in minutes between captures.
         """
         self.config = config
         self.retention_days = retention_days
+        self.capture_interval = capture_interval
 
     def sync(self, files_to_upload: list[tuple[str, str]]) -> bool:
         """
@@ -127,7 +134,10 @@ class SFTPUploader:
                 image_files.append(entry)
 
         image_files.sort()
-        log_data = {"images": image_files}
+        log_data = {
+            "captureInterval": self.capture_interval,
+            "images": image_files,
+        }
         json_content = json.dumps(log_data, indent=2)
 
         with sftp.file(f"{remote_dir}/webcam_log.json", "w") as f:

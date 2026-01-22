@@ -32,7 +32,7 @@ class TestSFTPUploader:
     @pytest.fixture
     def uploader(self, sftp_config: SFTPConfig) -> SFTPUploader:
         """Create a test uploader instance."""
-        return SFTPUploader(sftp_config, retention_days=7)
+        return SFTPUploader(sftp_config, retention_days=7, capture_interval=5)
 
     @pytest.fixture
     def mock_paramiko(self) -> MagicMock:
@@ -152,6 +152,7 @@ class TestSFTPUploader:
 
             # Check that file was written with correct content
             write_call = mock_file.write.call_args[0][0]
+            assert '"captureInterval": 5' in write_call
             assert "webcam_2026-01-20-10-00.avif" in write_call
             assert "webcam_2026-01-20-11-00.avif" in write_call
             assert "webcam_2026-01-20-12-00.avif" in write_call
@@ -259,3 +260,17 @@ class TestSFTPUploader:
         uploader = SFTPUploader(config, retention_days=30)
 
         assert uploader.retention_days == 30
+
+    def test_default_capture_interval(self) -> None:
+        """Test that default capture_interval is 1."""
+        config = SFTPConfig()
+        uploader = SFTPUploader(config)
+
+        assert uploader.capture_interval == 1
+
+    def test_custom_capture_interval(self) -> None:
+        """Test that custom capture_interval is applied."""
+        config = SFTPConfig()
+        uploader = SFTPUploader(config, capture_interval=10)
+
+        assert uploader.capture_interval == 10

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `captureInterval` field in `webcam_log.json` to indicate the capture interval in minutes
 - Tiling support for Real-ESRGAN processing (`TILE_SIZE` env var, default 400px)
 - Progress bar with ETA for tile processing (using tqdm)
 - Configurable maximum downscale factor (`MAX_DOWNSCALE_FACTOR` env var, default 2)
