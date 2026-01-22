@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improved documentation for `CAPTURE_INTERVAL` to clarify clock-aligned timing behavior (captures aligned to midnight, not script start time)
 - Default upscale factor changed from 3x to 2x for better quality with 4K sources
 - Downscaling now limited to 2x max (previously 6x for 4K to 1080p) to preserve text/details
 - Timestamp overlay now only on JPEG files; AVIF files are saved without overlay

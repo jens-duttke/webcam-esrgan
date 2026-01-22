@@ -94,12 +94,33 @@ All settings are configured in `.env.local`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CAPTURE_INTERVAL` | `1` | Minutes between captures (aligned to clock) |
+| `CAPTURE_INTERVAL` | `1` | Minutes between captures (clock-aligned, see below) |
 | `TARGET_HEIGHT` | `1080` | Output resolution height in pixels |
 | `SHOW_PREVIEW` | `true` | Show preview window (`true`/`false`) |
 | `RETENTION_DAYS` | `7` | Days to keep history images on server |
 | `OUTPUT_DIR` | `images` | Local directory for saved images |
 | `TIMESTAMP_FORMAT` | `%Y-%m-%d %H:%M:%S` | Format for timestamp overlay (strftime) |
+
+#### Clock-Aligned Capture Intervals
+
+The `CAPTURE_INTERVAL` setting uses **clock-aligned timing** based on midnight (00:00). This means captures always occur at "round" times, regardless of when the script was started.
+
+**How it works:**
+- Intervals are calculated from 00:00 (midnight), not from script start time
+- The script waits until the next aligned time before the first capture
+- This ensures consistent, predictable capture times
+
+**Examples:**
+
+| Interval | Script Start | First Capture | Subsequent Captures |
+|----------|--------------|---------------|---------------------|
+| `1` | 16:32:45 | 16:33:00 | 16:34, 16:35, 16:36... |
+| `5` | 16:32:45 | 16:35:00 | 16:40, 16:45, 16:50... |
+| `10` | 16:32:45 | 16:40:00 | 16:50, 17:00, 17:10... |
+| `15` | 16:32:45 | 16:45:00 | 17:00, 17:15, 17:30... |
+| `30` | 16:32:45 | 17:00:00 | 17:30, 18:00, 18:30... |
+
+This clock-alignment makes it easy to predict when captures will occur and ensures that images from different days are taken at exactly the same times (e.g., always at :00, :10, :20, :30, :40, :50 for a 10-minute interval).
 
 ### AI Enhancement Settings
 
@@ -139,7 +160,7 @@ Leave `SFTP_HOST` empty to disable upload.
 
 ## How It Works
 
-1. Waits for the next full minute (clock-synchronized)
+1. Waits for the next clock-aligned interval (e.g., :00, :10, :20... for 10-minute interval)
 2. Fetches snapshot from camera via HTTP
 3. Shrinks image to `TARGET_HEIGHT / UPSCALE_FACTOR`
 4. Upscales using Real-ESRGAN AI
