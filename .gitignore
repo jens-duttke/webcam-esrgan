@@ -1,0 +1,52 @@
+# Environment variables with sensitive data
+.env
+.env.local
+.env.*.local
+
+# Python Virtual Environment
+venv/
+env/
+.venv/
+Include/
+Lib/
+Scripts/
+pyvenv.cfg
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+
+# Test coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Real-ESRGAN model weights (large, downloaded automatically)
+weights/
+
+# Output images
+images/
+*.jpg
+*.jpeg
+*.png
+*.avif
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,24 @@
+# Webcam Enhancement with Real-ESRGAN
+# Install with: pip install -r requirements.txt
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Image processing
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+pillow-avif-plugin>=1.4.0
+
+# SFTP upload (optional)
+paramiko>=3.0.0
+
+# Real-ESRGAN and dependencies
+# Note: PyTorch must be installed separately depending on your system
+# CPU: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+realesrgan>=0.3.0
+basicsr>=1.4.2
+
+# Development dependencies (optional)
+# pip install pytest pytest-cov ruff mypy

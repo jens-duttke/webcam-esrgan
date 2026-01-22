@@ -1,0 +1,104 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webcam-esrgan"
+version = "1.0.0"
+description = "AI-powered webcam image enhancement using Real-ESRGAN"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Jens Duttke"},
+]
+keywords = ["webcam", "esrgan", "image-enhancement", "ai", "super-resolution"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "Pillow>=10.0.0",
+    "pillow-avif-plugin>=1.4.0",
+    "realesrgan>=0.3.0",
+    "basicsr>=1.4.0",
+]
+
+[project.optional-dependencies]
+sftp = ["paramiko>=3.0.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+webcam-esrgan = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/jens-duttke/webcam-esrgan"
+Repository = "https://github.com/jens-duttke/webcam-esrgan"
+Issues = "https://github.com/jens-duttke/webcam-esrgan/issues"
+
+[tool.setuptools.packages.find]
+include = ["webcam_esrgan*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["webcam_esrgan"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "cv2.*",
+    "PIL.*",
+    "pillow_avif.*",
+    "realesrgan.*",
+    "basicsr.*",
+    "paramiko.*",
+    "torchvision.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
