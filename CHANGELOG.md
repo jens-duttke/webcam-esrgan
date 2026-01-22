@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Interactive preview window with original/enhanced image comparison
+  - Click and hold mouse button to show original image
+  - Press spacebar to toggle between original and enhanced view
+  - Press `q` or `ESC` to close the application
+- Preview window now opens at 600px height with correct aspect ratio (based on image)
+- Preview window uses letterboxing to maintain aspect ratio when resized
+
 ### Changed
 
 - Timestamp overlay now only on JPEG files; AVIF files are saved without overlay

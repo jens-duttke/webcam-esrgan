@@ -13,8 +13,10 @@ import sys
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 import cv2
+import numpy as np
 
 from webcam_esrgan.camera import Camera
 from webcam_esrgan.config import Config
@@ -22,8 +24,103 @@ from webcam_esrgan.enhance import Enhancer
 from webcam_esrgan.image import add_timestamp, save_images
 from webcam_esrgan.sftp import SFTPUploader
 
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
 # Global flag for clean shutdown
 shutdown_requested = False
+
+# Preview window constants
+PREVIEW_INITIAL_HEIGHT = 600
+
+
+class PreviewState:
+    """Manages preview window state for original/enhanced image comparison."""
+
+    def __init__(self, window_name: str) -> None:
+        self.show_original = False
+        self.original_frame: NDArray[np.uint8] | None = None
+        self.enhanced_frame: NDArray[np.uint8] | None = None
+        self.window_name = window_name
+        self.aspect_ratio: float | None = None
+        self.window_initialized = False
+
+    def mouse_callback(
+        self, event: int, _x: int, _y: int, _flags: int, _param: object
+    ) -> None:
+        """Handle mouse events for image comparison."""
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.show_original = True
+        elif event == cv2.EVENT_LBUTTONUP:
+            self.show_original = False
+
+    def toggle_original(self) -> None:
+        """Toggle between original and enhanced view (for keyboard)."""
+        self.show_original = not self.show_original
+
+    def get_display_image(self) -> NDArray[np.uint8] | None:
+        """Get the appropriate image based on current state."""
+        if self.show_original and self.original_frame is not None:
+            return self.original_frame
+        return self.enhanced_frame
+
+    def initialize_window(self, image: NDArray[np.uint8]) -> None:
+        """Create and initialize window based on first image's aspect ratio."""
+        if self.window_initialized:
+            return
+
+        img_height, img_width = image.shape[:2]
+        self.aspect_ratio = img_width / img_height
+
+        # Calculate initial window size
+        initial_width = int(PREVIEW_INITIAL_HEIGHT * self.aspect_ratio)
+
+        # Create window with correct initial size
+        cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(self.window_name, initial_width, PREVIEW_INITIAL_HEIGHT)
+        cv2.setMouseCallback(self.window_name, self.mouse_callback)
+        self.window_initialized = True
+
+    def update_display(self) -> None:
+        """Update the preview window with the current image (letterboxed)."""
+        display = self.get_display_image()
+        if display is None:
+            return
+
+        # Initialize window on first display
+        self.initialize_window(display)
+
+        try:
+            # Get current window size
+            rect = cv2.getWindowImageRect(self.window_name)
+            if rect[2] > 0 and rect[3] > 0:
+                window_width, window_height = rect[2], rect[3]
+                img_height, img_width = display.shape[:2]
+                img_aspect = img_width / img_height
+                window_aspect = window_width / window_height
+
+                # Calculate scaled size maintaining aspect ratio
+                if window_aspect > img_aspect:
+                    # Window is wider - fit to height, add horizontal bars
+                    new_height = window_height
+                    new_width = int(window_height * img_aspect)
+                else:
+                    # Window is taller - fit to width, add vertical bars
+                    new_width = window_width
+                    new_height = int(window_width / img_aspect)
+
+                # Resize image
+                resized = cv2.resize(display, (new_width, new_height))
+
+                # Create black canvas and center the image (letterboxing)
+                canvas = np.zeros((window_height, window_width, 3), dtype=np.uint8)
+                x_offset = (window_width - new_width) // 2
+                y_offset = (window_height - new_height) // 2
+                canvas[y_offset : y_offset + new_height, x_offset : x_offset + new_width] = resized
+
+                cv2.imshow(self.window_name, canvas)
+        except cv2.error:
+            pass
 
 
 def signal_handler(_signum: int, _frame: object) -> None:
@@ -36,6 +133,7 @@ def signal_handler(_signum: int, _frame: object) -> None:
 def wait_for_next_interval(
     interval_minutes: int,
     should_exit: Callable[[], bool],
+    update_display: Callable[[], None] | None = None,
 ) -> bool:
     """
     Waits until the next capture interval (aligned to clock).
@@ -43,6 +141,7 @@ def wait_for_next_interval(
     Args:
         interval_minutes: Minutes between captures.
         should_exit: Callable that returns True if we should stop waiting.
+        update_display: Optional callable to update the preview display.
 
     Returns:
         True if we should continue, False if exit was requested.
@@ -76,7 +175,10 @@ def wait_for_next_interval(
     while time.time() - wait_start < seconds_to_wait:
         if should_exit():
             return False
-        time.sleep(0.1)
+        # Update display for interactive preview (responds to mouse/keyboard)
+        if update_display is not None:
+            update_display()
+        time.sleep(0.05)  # Shorter sleep for more responsive UI
     return True
 
 
@@ -142,17 +244,33 @@ def main() -> int:
 
     # Create preview window
     window_name = "Real-ESRGAN Enhanced Webcam"
-    if config.show_preview:
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    preview = PreviewState(window_name)
 
     def is_window_closed() -> bool:
         """Checks if the OpenCV window has been closed."""
         if not config.show_preview:
             return False
+        if not preview.window_initialized:
+            return False  # Window not created yet
         try:
             return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
         except cv2.error:
             return True
+
+    def handle_keyboard() -> bool:
+        """Handle keyboard input. Returns True if exit requested."""
+        if not config.show_preview:
+            return False
+        if not preview.window_initialized:
+            return False  # Window not created yet
+
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q") or key == 27:  # 'q' or ESC
+            return True
+        if key == ord(" "):  # Spacebar toggles original/enhanced
+            preview.toggle_original()
+            preview.update_display()
+        return False
 
     def should_exit() -> bool:
         """Checks all exit conditions."""
@@ -161,12 +279,19 @@ def main() -> int:
         if config.show_preview:
             if is_window_closed():
                 return True
-            cv2.waitKey(1)
+            if handle_keyboard():
+                return True
         return False
+
+    # Create update function for wait loop
+    def update_preview() -> None:
+        """Update preview display during wait intervals."""
+        if config.show_preview:
+            preview.update_display()
 
     # Wait for first interval
     print(f"Synchronizing to {config.capture_interval}-minute interval...")
-    if not wait_for_next_interval(config.capture_interval, should_exit):
+    if not wait_for_next_interval(config.capture_interval, should_exit, update_preview):
         shutdown_requested = True
 
     # Main loop
@@ -180,12 +305,18 @@ def main() -> int:
                 timestamp_now = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                 print(f"  Image captured at {timestamp_now}")
 
+                # Store original frame for comparison (before processing)
+                preview.original_frame = frame
+
                 # Enhance with Real-ESRGAN
                 enhanced = enhancer.enhance(frame)
 
                 if enhanced is not None:
                     # Add timestamp overlay for JPEG only
                     with_timestamp = add_timestamp(enhanced, config.timestamp_format)
+
+                    # Store enhanced frame for display
+                    preview.enhanced_frame = with_timestamp
 
                     # Save images (JPEG with timestamp, AVIF without)
                     current_jpg, current_avif, timestamped = save_images(
@@ -202,10 +333,9 @@ def main() -> int:
                             ]
                         )
 
-                    # Show preview (with timestamp)
+                    # Show preview
                     if config.show_preview:
-                        display = cv2.resize(with_timestamp, (0, 0), fx=0.5, fy=0.5)
-                        cv2.imshow(window_name, display)
+                        preview.update_display()
 
                     if should_exit():
                         break
@@ -213,7 +343,9 @@ def main() -> int:
                 print("  Capture failed")
 
             # Wait for next interval
-            if not wait_for_next_interval(config.capture_interval, should_exit):
+            if not wait_for_next_interval(
+                config.capture_interval, should_exit, update_preview
+            ):
                 break
 
     except Exception as e:
