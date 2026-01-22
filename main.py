@@ -303,9 +303,10 @@ def main() -> int:
             # Capture image
             print("Capturing image...")
             frame = camera.fetch_snapshot()
+            capture_time = datetime.now()  # Record capture time immediately
 
             if frame is not None:
-                timestamp_now = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                timestamp_now = capture_time.strftime("%H:%M:%S.%f")[:-3]
                 print(f"  Image captured at {timestamp_now}")
 
                 # Enhance with Real-ESRGAN in background thread
@@ -333,8 +334,10 @@ def main() -> int:
                     enhanced = future.result()
 
                 if enhanced is not None:
-                    # Add timestamp overlay for JPEG only
-                    with_timestamp = add_timestamp(enhanced, config.timestamp_format)
+                    # Add timestamp overlay for JPEG only (use capture time)
+                    with_timestamp = add_timestamp(
+                        enhanced, config.timestamp_format, capture_time
+                    )
 
                     # Update preview frames atomically (both at once)
                     preview.original_frame = frame
@@ -342,7 +345,7 @@ def main() -> int:
 
                     # Save images (JPEG with timestamp, AVIF without)
                     current_jpg, current_avif, timestamped = save_images(
-                        with_timestamp, enhanced, config.image
+                        with_timestamp, enhanced, config.image, capture_time
                     )
 
                     # Upload via SFTP

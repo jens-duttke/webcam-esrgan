@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 def add_timestamp(
     image: NDArray[np.uint8],
     timestamp_format: str = "%Y-%m-%d %H:%M:%S",
+    capture_time: datetime | None = None,
 ) -> NDArray[np.uint8]:
     """
     Adds a timestamp overlay to the top left of the image.
@@ -27,11 +28,14 @@ def add_timestamp(
     Args:
         image: Input BGR image.
         timestamp_format: strftime format string for the timestamp.
+        capture_time: The time when the image was captured. If None, uses current time.
 
     Returns:
         Image with timestamp overlay.
     """
-    timestamp_text = datetime.now().strftime(timestamp_format)
+    if capture_time is None:
+        capture_time = datetime.now()
+    timestamp_text = capture_time.strftime(timestamp_format)
     result = image.copy()
 
     # Font settings
@@ -69,6 +73,7 @@ def save_images(
     image_with_timestamp: NDArray[np.uint8],
     image_without_timestamp: NDArray[np.uint8],
     config: ImageConfig,
+    capture_time: datetime | None = None,
 ) -> tuple[Path, Path, Path]:
     """
     Saves the image as JPEG (with timestamp) and AVIF files (without timestamp).
@@ -77,6 +82,7 @@ def save_images(
         image_with_timestamp: Image with timestamp overlay (for JPEG).
         image_without_timestamp: Image without timestamp overlay (for AVIF files).
         config: Image quality configuration.
+        capture_time: The time when the image was captured. If None, uses current time.
 
     Returns:
         Tuple of (current_jpg_path, current_avif_path, timestamped_path).
@@ -86,7 +92,9 @@ def save_images(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate filenames
-    timestamp_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    if capture_time is None:
+        capture_time = datetime.now()
+    timestamp_str = capture_time.strftime("%Y-%m-%d-%H-%M")
     current_jpg_filename = "webcam_current.jpg"
     current_avif_filename = "webcam_current.avif"
     timestamped_filename = f"webcam_{timestamp_str}.avif"

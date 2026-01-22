@@ -1,5 +1,6 @@
 """Tests for webcam_esrgan.image module."""
 
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -64,6 +65,23 @@ class TestAddTimestamp:
         changed_pixels = np.sum(diff > 50)
 
         assert changed_pixels > 0, "Timestamp should modify some pixels"
+
+    def test_uses_capture_time_when_provided(self) -> None:
+        """Test that capture_time parameter is used instead of current time."""
+        original = np.zeros((100, 400, 3), dtype=np.uint8)
+        capture_time = datetime(2020, 6, 15, 10, 30, 45)
+
+        # Should NOT call datetime.now() when capture_time is provided
+        with patch("webcam_esrgan.image.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 1, 21, 14, 0, 0)
+
+            result = add_timestamp(
+                original, timestamp_format="%Y-%m-%d", capture_time=capture_time
+            )
+
+            # datetime.now() should NOT be called when capture_time is provided
+            mock_dt.now.assert_not_called()
+            assert result.shape == original.shape
 
 
 class TestSaveImages:
@@ -195,20 +213,33 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that multiple saves create multiple timestamped files."""
-        with patch("webcam_esrgan.image.datetime") as mock_datetime:
-            from datetime import datetime
+        # First save with explicit capture_time
+        capture_time_1 = datetime(2026, 1, 21, 10, 0, 0)
+        _, _, path1 = save_images(
+            test_image, test_image, image_config, capture_time_1
+        )
 
-            # First save
-            mock_datetime.now.return_value = datetime(2026, 1, 21, 10, 0, 0)
-            _, _, path1 = save_images(test_image, test_image, image_config)
+        # Second save with different capture_time
+        capture_time_2 = datetime(2026, 1, 21, 10, 1, 0)
+        _, _, path2 = save_images(
+            test_image, test_image, image_config, capture_time_2
+        )
 
-            # Second save (different time)
-            mock_datetime.now.return_value = datetime(2026, 1, 21, 10, 1, 0)
-            _, _, path2 = save_images(test_image, test_image, image_config)
+        assert path1.name != path2.name
+        assert path1.exists()
+        assert path2.exists()
 
-            assert path1.name != path2.name
-            assert path1.exists()
-            assert path2.exists()
+    def test_uses_capture_time_for_filename(
+        self, test_image: np.ndarray, image_config: ImageConfig
+    ) -> None:
+        """Test that capture_time is used for the timestamped filename."""
+        capture_time = datetime(2020, 6, 15, 14, 30, 0)
+        _, _, timestamped = save_images(
+            test_image, test_image, image_config, capture_time
+        )
+
+        # Filename should reflect the capture_time, not current time
+        assert timestamped.name == "webcam_2020-06-15-14-30.avif"
 
     def test_respects_jpeg_quality(
         self, test_image: np.ndarray, tmp_path: Path

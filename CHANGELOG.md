@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SSL certificate verification error on Windows when downloading Real-ESRGAN model (now uses certifi)
 - Preview window now stays responsive during AI enhancement (moved processing to background thread)
 - Preview comparison now shows consistent frames (original/enhanced update atomically after processing)
+- Timestamp overlay and filename now use capture time instead of save time
 
 ## [1.0.0] - 2026-01-21
 
