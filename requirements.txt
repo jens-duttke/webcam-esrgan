@@ -13,6 +13,9 @@ pillow-avif-plugin>=1.4.0
 # SSL certificates (for model download on Windows)
 certifi>=2023.0.0
 
+# Progress bars
+tqdm>=4.65.0
+
 # SFTP upload (optional)
 paramiko>=3.0.0
 

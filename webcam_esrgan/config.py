@@ -67,11 +67,13 @@ class Config:
     # Capture settings
     capture_interval: int = 1
     target_height: int = 1080
-    upscale_factor: int = 3
+    upscale_factor: int = 2
     enhancement_blend: float = 0.8
     show_preview: bool = True
     retention_days: int = 7
     timestamp_format: str = "%Y-%m-%d %H:%M:%S"
+    tile_size: int = 400
+    max_downscale_factor: int = 2
 
     @classmethod
     def from_env(cls, env_path: Path | None = None) -> Config:
@@ -137,9 +139,11 @@ class Config:
             ),
             capture_interval=int(os.getenv("CAPTURE_INTERVAL", "1")),
             target_height=int(os.getenv("TARGET_HEIGHT", "1080")),
-            upscale_factor=int(os.getenv("UPSCALE_FACTOR", "3")),
+            upscale_factor=int(os.getenv("UPSCALE_FACTOR", "2")),
             enhancement_blend=float(os.getenv("ENHANCEMENT_BLEND", "0.8")),
             show_preview=os.getenv("SHOW_PREVIEW", "true").lower() == "true",
             retention_days=int(os.getenv("RETENTION_DAYS", "7")),
             timestamp_format=os.getenv("TIMESTAMP_FORMAT", "%Y-%m-%d %H:%M:%S"),
+            tile_size=int(os.getenv("TILE_SIZE", "400")),
+            max_downscale_factor=int(os.getenv("MAX_DOWNSCALE_FACTOR", "2")),
         )

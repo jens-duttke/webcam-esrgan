@@ -89,9 +89,11 @@ class TestEnhancerInit:
         enhancer = Enhancer()
 
         assert enhancer.target_height == 1080
-        assert enhancer.upscale_factor == 3
+        assert enhancer.upscale_factor == 2
         assert enhancer.enhancement_blend == 0.8
         assert enhancer.weights_dir == Path.cwd() / "weights"
+        assert enhancer.tile_size == 400
+        assert enhancer.max_downscale_factor == 2
 
     def test_custom_values(self) -> None:
         """Test that custom values are applied."""

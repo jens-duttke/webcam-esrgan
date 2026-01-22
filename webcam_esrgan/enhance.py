@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import re
 import ssl
 import sys
 import time
@@ -13,9 +15,34 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 from numpy.typing import NDArray
+from tqdm import tqdm
 
 if TYPE_CHECKING:
     from realesrgan import RealESRGANer
+
+
+class _TileProgressCapture(io.StringIO):
+    """Captures stdout and updates tqdm progress bar for tile processing."""
+
+    def __init__(self, progress_bar: tqdm) -> None:
+        super().__init__()
+        self._progress_bar = progress_bar
+        self._tile_pattern = re.compile(r"Tile\s+(\d+)/(\d+)")
+
+    def write(self, text: str) -> int:
+        """Intercept writes and update progress bar on tile messages."""
+        match = self._tile_pattern.search(text)
+        if match:
+            current = int(match.group(1))
+            total = int(match.group(2))
+            if self._progress_bar.total != total:
+                self._progress_bar.total = total
+            self._progress_bar.n = current
+            self._progress_bar.refresh()
+        return len(text)
+
+    def flush(self) -> None:
+        """Flush is a no-op for this capture."""
 
 
 def _download_file(url: str, dest: Path) -> None:
@@ -67,9 +94,11 @@ class Enhancer:
     def __init__(
         self,
         target_height: int = 1080,
-        upscale_factor: int = 3,
+        upscale_factor: int = 2,
         enhancement_blend: float = 0.8,
         weights_dir: Path | None = None,
+        tile_size: int = 400,
+        max_downscale_factor: int = 2,
     ) -> None:
         """
         Initializes the enhancer.
@@ -79,11 +108,16 @@ class Enhancer:
             upscale_factor: AI upscale factor (2-4).
             enhancement_blend: Blend ratio (0.0 = original, 1.0 = AI only).
             weights_dir: Directory for model weights. Defaults to ./weights.
+            tile_size: Tile size for processing large images. 0 disables tiling.
+            max_downscale_factor: Maximum factor to downscale before enhancement.
+                Limits quality loss for high-resolution sources (e.g., 4K).
         """
         self.target_height = target_height
         self.upscale_factor = upscale_factor
         self.enhancement_blend = enhancement_blend
         self.weights_dir = weights_dir or Path.cwd() / "weights"
+        self.tile_size = tile_size
+        self.max_downscale_factor = max_downscale_factor
         self._upsampler: RealESRGANer | None = None
 
     @property
@@ -140,17 +174,19 @@ class Enhancer:
                 half = False
                 print("Using CPU")
 
-            # Create upsampler
+            # Create upsampler with tiling for large images
             self._upsampler = RealESRGANer(
                 scale=4,
                 model_path=str(model_path),
                 model=model,
-                tile=0,
+                tile=self.tile_size,
                 tile_pad=10,
                 pre_pad=0,
                 half=half,
                 device=device,
             )
+            if self.tile_size > 0:
+                print(f"Tiling enabled (tile size: {self.tile_size}px)")
 
             print("Real-ESRGAN loaded successfully!\n")
             return True
@@ -197,9 +233,22 @@ class Enhancer:
 
         try:
             # Pre-shrink so upscaling reaches target height
+            # But limit downscaling to preserve detail (especially text)
             target_pre_h = self.target_height // self.upscale_factor
+            downscale_factor = h / target_pre_h if target_pre_h > 0 else 1
 
-            if h > target_pre_h:
+            if downscale_factor > self.max_downscale_factor:
+                # Limit downscaling to preserve quality
+                actual_pre_h = h // self.max_downscale_factor
+                actual_pre_w = w // self.max_downscale_factor
+                img_small = cv2.resize(
+                    img_rgb, (actual_pre_w, actual_pre_h), interpolation=cv2.INTER_AREA
+                )
+                print(
+                    f"  Pre-shrunk to {actual_pre_w}x{actual_pre_h} "
+                    f"(limited to {self.max_downscale_factor}x, was {downscale_factor:.1f}x)"
+                )
+            elif h > target_pre_h:
                 pre_scale = target_pre_h / h
                 pre_h = int(h * pre_scale)
                 pre_w = int(w * pre_scale)
@@ -210,12 +259,30 @@ class Enhancer:
             else:
                 img_small = img_rgb
 
-            # Apply Real-ESRGAN
-            print(f"  Applying Real-ESRGAN ({self.upscale_factor}x)...")
-            output, _ = self._upsampler.enhance(img_small, outscale=self.upscale_factor)
+            # Apply Real-ESRGAN with progress bar
+            small_h, small_w = img_small.shape[:2]
+            pbar = tqdm(
+                total=1,
+                desc=f"  ESRGAN {self.upscale_factor}x ({small_w}x{small_h})",
+                unit="tile",
+                leave=True,
+                bar_format="{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+            )
+
+            # Capture tile progress from RealESRGAN's output
+            capture = _TileProgressCapture(pbar)
+            old_stdout = sys.stdout
+            sys.stdout = capture
+            try:
+                output, _ = self._upsampler.enhance(
+                    img_small, outscale=self.upscale_factor
+                )
+            finally:
+                sys.stdout = old_stdout
+                pbar.close()
 
             elapsed = time.time() - start_time
-            print(f"  Enhancement completed in {elapsed:.1f}s")
+            print(f"  Completed in {elapsed:.1f}s")
 
             # RGB back to BGR
             output_bgr: NDArray[np.uint8] = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)

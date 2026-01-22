@@ -33,6 +33,7 @@ dependencies = [
     "realesrgan>=0.3.0",
     "basicsr>=1.4.0",
     "certifi>=2023.0.0",
+    "tqdm>=4.65.0",
 ]
 
 [project.optional-dependencies]

@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -219,6 +220,8 @@ def main() -> int:
         target_height=config.target_height,
         upscale_factor=config.upscale_factor,
         enhancement_blend=config.enhancement_blend,
+        tile_size=config.tile_size,
+        max_downscale_factor=config.max_downscale_factor,
     )
     sftp = SFTPUploader(config.sftp, config.retention_days)
 
@@ -305,17 +308,36 @@ def main() -> int:
                 timestamp_now = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                 print(f"  Image captured at {timestamp_now}")
 
-                # Store original frame for comparison (before processing)
-                preview.original_frame = frame
+                # Enhance with Real-ESRGAN in background thread
+                # This keeps the UI responsive during processing
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future: Future[NDArray[np.uint8] | None] = executor.submit(
+                        enhancer.enhance, frame
+                    )
 
-                # Enhance with Real-ESRGAN
-                enhanced = enhancer.enhance(frame)
+                    # Keep UI responsive while processing
+                    while not future.done():
+                        if config.show_preview:
+                            preview.update_display()
+                            key = cv2.waitKey(50) & 0xFF
+                            if key == ord("q") or key == 27:
+                                shutdown_requested = True
+                        else:
+                            time.sleep(0.05)
+
+                        if shutdown_requested:
+                            # Can't cancel PyTorch, but we can exit after it finishes
+                            print("\n  Finishing current operation...")
+                            break
+
+                    enhanced = future.result()
 
                 if enhanced is not None:
                     # Add timestamp overlay for JPEG only
                     with_timestamp = add_timestamp(enhanced, config.timestamp_format)
 
-                    # Store enhanced frame for display
+                    # Update preview frames atomically (both at once)
+                    preview.original_frame = frame
                     preview.enhanced_frame = with_timestamp
 
                     # Save images (JPEG with timestamp, AVIF without)

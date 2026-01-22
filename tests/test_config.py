@@ -184,10 +184,12 @@ class TestConfig:
         # Check defaults
         assert config.capture_interval == 1
         assert config.target_height == 1080
-        assert config.upscale_factor == 3
+        assert config.upscale_factor == 2
         assert config.enhancement_blend == 0.8
         assert config.show_preview is True
         assert config.retention_days == 7
+        assert config.tile_size == 400
+        assert config.max_downscale_factor == 2
 
     @patch.dict(os.environ, {}, clear=True)
     @patch("webcam_esrgan.config.load_dotenv")
