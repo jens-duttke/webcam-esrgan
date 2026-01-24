@@ -91,9 +91,16 @@ All settings are configured in `.env.local`:
 | `CAMERA_PASSWORD` | `password` | Camera password |
 | `CAMERA_CHANNEL` | `0` | Camera channel (usually 0) |
 
+**Finding your camera channel:** To check the current channel assignment on your Reolink camera, open this URL in your browser:
+```
+https://<CAMERA_IP>/cgi-bin/api.cgi?cmd=GetChannelStatus&user=<CAMERA_USER>&password=<CAMERA_PASSWORD>
+```
+
 ### Zoom/Focus Control (optional)
 
 These settings ensure correct zoom and focus before each capture. Leave unset to skip verification.
+
+**Note:** Zoom/Focus control requires a camera user with admin privileges.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
