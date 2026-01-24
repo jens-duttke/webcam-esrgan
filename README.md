@@ -61,7 +61,7 @@ Captures snapshots from IP cameras and enhances image quality using Real-ESRGAN 
 python main.py
 ```
 
-To stop: Close the preview window, press `q`, `ESC`, or `Ctrl+C`.
+To stop: Press `q`, `ESC`, or `Ctrl+C`.
 
 ### Preview Window Controls
 
@@ -71,12 +71,14 @@ When `SHOW_PREVIEW=true` (default), a preview window displays the enhanced image
 |---------|--------|
 | **Mouse click (hold)** | Shows original image while held |
 | **Spacebar** | Toggles between original and enhanced image |
+| **w** | Reopens the window if it was closed |
 | **q** or **ESC** | Closes the application |
 
 The preview window:
 - Opens at 600 pixels height with correct aspect ratio
 - Can be freely resized; image maintains aspect ratio with letterboxing (black bars)
 - Both original and enhanced images are scaled to fit the window
+- Can be closed via the X button without stopping the program (reopen with `w`)
 
 ## Configuration
 

@@ -45,6 +45,7 @@ class PreviewState:
         self.window_name = window_name
         self.aspect_ratio: float | None = None
         self.window_initialized = False
+        self.window_visible = False
 
     def mouse_callback(
         self, event: int, _x: int, _y: int, _flags: int, _param: object
@@ -67,9 +68,6 @@ class PreviewState:
 
     def initialize_window(self, image: NDArray[np.uint8]) -> None:
         """Create and initialize window based on first image's aspect ratio."""
-        if self.window_initialized:
-            return
-
         img_height, img_width = image.shape[:2]
         self.aspect_ratio = img_width / img_height
 
@@ -81,6 +79,35 @@ class PreviewState:
         cv2.resizeWindow(self.window_name, initial_width, PREVIEW_INITIAL_HEIGHT)
         cv2.setMouseCallback(self.window_name, self.mouse_callback)
         self.window_initialized = True
+        self.window_visible = True
+
+    def close_window(self) -> None:
+        """Close the preview window without exiting the program."""
+        if self.window_visible:
+            cv2.destroyWindow(self.window_name)
+            self.window_visible = False
+
+    def reopen_window(self) -> None:
+        """Reopen the preview window if it was closed."""
+        if not self.window_visible and self.window_initialized:
+            # Re-create window with same settings
+            initial_width = int(PREVIEW_INITIAL_HEIGHT * (self.aspect_ratio or 1.0))
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(self.window_name, initial_width, PREVIEW_INITIAL_HEIGHT)
+            cv2.setMouseCallback(self.window_name, self.mouse_callback)
+            self.window_visible = True
+            # Immediately show current image
+            self.update_display()
+
+    def is_window_open(self) -> bool:
+        """Check if the window is currently open and visible."""
+        if not self.window_visible:
+            return False
+        try:
+            return cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) >= 1
+        except cv2.error:
+            self.window_visible = False
+            return False
 
     def update_display(self) -> None:
         """Update the preview window with the current image (letterboxed)."""
@@ -88,8 +115,11 @@ class PreviewState:
         if display is None:
             return
 
-        # Initialize window on first display
-        self.initialize_window(display)
+        # Initialize window on first display, or skip if window is closed
+        if not self.window_initialized:
+            self.initialize_window(display)
+        elif not self.window_visible:
+            return  # Window is closed, don't update
 
         try:
             # Get current window size
@@ -251,7 +281,7 @@ def main() -> int:
     print(f"Connection successful! Image size: {width}x{height}")
 
     if config.show_preview:
-        print("\nClose the window or press Ctrl+C to exit.\n")
+        print("\nPress 'q' or Ctrl+C to exit. Close window with X, reopen with 'w'.\n")
     else:
         print("\nPress Ctrl+C to exit.\n")
 
@@ -259,30 +289,34 @@ def main() -> int:
     window_name = "Real-ESRGAN Enhanced Webcam"
     preview = PreviewState(window_name)
 
-    def is_window_closed() -> bool:
-        """Checks if the OpenCV window has been closed."""
+    def check_window_closed() -> None:
+        """Check if the window was closed by the user and update state."""
         if not config.show_preview:
-            return False
-        if not preview.window_initialized:
-            return False  # Window not created yet
-        try:
-            return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
-        except cv2.error:
-            return True
+            return
+        if not preview.window_initialized or not preview.window_visible:
+            return
+        # Check if window was closed via X button
+        if not preview.is_window_open():
+            preview.window_visible = False
 
     def handle_keyboard() -> bool:
         """Handle keyboard input. Returns True if exit requested."""
         if not config.show_preview:
             return False
-        if not preview.window_initialized:
-            return False  # Window not created yet
 
+        # Always process keyboard, even when window is closed (to allow reopening)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q") or key == 27:  # 'q' or ESC
             return True
         if key == ord(" "):  # Spacebar toggles original/enhanced
             preview.toggle_original()
             preview.update_display()
+        if (
+            key == ord("w")
+            and not preview.window_visible
+            and preview.window_initialized
+        ):  # 'w' reopens window if closed
+            preview.reopen_window()
         return False
 
     def should_exit() -> bool:
@@ -290,8 +324,7 @@ def main() -> int:
         if shutdown_requested:
             return True
         if config.show_preview:
-            if is_window_closed():
-                return True
+            check_window_closed()  # Update window state (but don't exit)
             if handle_keyboard():
                 return True
         return False
@@ -342,10 +375,17 @@ def main() -> int:
                     # Keep UI responsive while processing
                     while not future.done():
                         if config.show_preview:
+                            check_window_closed()
                             preview.update_display()
                             key = cv2.waitKey(50) & 0xFF
                             if key == ord("q") or key == 27:
                                 shutdown_requested = True
+                            elif (
+                                key == ord("w")
+                                and not preview.window_visible
+                                and preview.window_initialized
+                            ):
+                                preview.reopen_window()
                         else:
                             time.sleep(0.05)
 
