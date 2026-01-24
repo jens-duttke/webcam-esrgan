@@ -256,19 +256,23 @@ def main() -> int:
 
     # Initialize components
     camera = Camera(config.camera)
-    enhancer = Enhancer(
-        target_height=config.target_height,
-        upscale_factor=config.upscale_factor,
-        enhancement_blend=config.enhancement_blend,
-        tile_size=config.tile_size,
-        max_downscale_factor=config.max_downscale_factor,
-    )
     sftp = SFTPUploader(config.sftp, config.retention_days, config.capture_interval)
 
-    # Initialize Real-ESRGAN
-    if not enhancer.initialize():
-        print("\nCould not load Real-ESRGAN. Exiting.")
-        return 1
+    # Initialize Real-ESRGAN (skip if enhancement_blend is 0)
+    enhancer: Enhancer | None = None
+    if config.enhancement_blend > 0:
+        enhancer = Enhancer(
+            target_height=config.target_height,
+            upscale_factor=config.upscale_factor,
+            enhancement_blend=config.enhancement_blend,
+            tile_size=config.tile_size,
+            max_downscale_factor=config.max_downscale_factor,
+        )
+        if not enhancer.initialize():
+            print("\nCould not load Real-ESRGAN. Exiting.")
+            return 1
+    else:
+        print("AI enhancement disabled (ENHANCEMENT_BLEND=0), skipping model load.")
 
     # Test camera connection
     print("Testing camera connection...")
@@ -365,41 +369,54 @@ def main() -> int:
                 timestamp_now = capture_time.strftime("%H:%M:%S.%f")[:-3]
                 print(f"  Image captured at {timestamp_now}")
 
-                # Enhance with Real-ESRGAN in background thread
-                # This keeps the UI responsive during processing
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future: Future[NDArray[np.uint8] | None] = executor.submit(
-                        enhancer.enhance, frame
+                # Process image (enhance with AI or just resize)
+                if enhancer is not None:
+                    # Enhance with Real-ESRGAN in background thread
+                    # This keeps the UI responsive during processing
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        future: Future[NDArray[np.uint8] | None] = executor.submit(
+                            enhancer.enhance, frame
+                        )
+
+                        # Keep UI responsive while processing
+                        while not future.done():
+                            if config.show_preview:
+                                check_window_closed()
+                                preview.update_display()
+                                key = cv2.waitKey(50) & 0xFF
+                                if key == ord("q") or key == 27:
+                                    shutdown_requested = True
+                                elif (
+                                    key == ord("w")
+                                    and not preview.window_visible
+                                    and preview.window_initialized
+                                ):
+                                    preview.reopen_window()
+                            else:
+                                time.sleep(0.05)
+
+                            if shutdown_requested:
+                                # Can't cancel PyTorch, but we can exit after it finishes
+                                print("\n  Finishing current operation...")
+                                break
+
+                        processed = future.result()
+                else:
+                    # No enhancement - just resize to target height
+                    h, w = frame.shape[:2]
+                    scale = config.target_height / h
+                    new_w = int(w * scale)
+                    processed = cv2.resize(
+                        frame,
+                        (new_w, config.target_height),
+                        interpolation=cv2.INTER_LANCZOS4,
                     )
+                    print(f"  Resized to {new_w}x{config.target_height} (no AI)")
 
-                    # Keep UI responsive while processing
-                    while not future.done():
-                        if config.show_preview:
-                            check_window_closed()
-                            preview.update_display()
-                            key = cv2.waitKey(50) & 0xFF
-                            if key == ord("q") or key == 27:
-                                shutdown_requested = True
-                            elif (
-                                key == ord("w")
-                                and not preview.window_visible
-                                and preview.window_initialized
-                            ):
-                                preview.reopen_window()
-                        else:
-                            time.sleep(0.05)
-
-                        if shutdown_requested:
-                            # Can't cancel PyTorch, but we can exit after it finishes
-                            print("\n  Finishing current operation...")
-                            break
-
-                    enhanced = future.result()
-
-                if enhanced is not None:
+                if processed is not None:
                     # Add timestamp overlay for JPEG only (use capture time)
                     with_timestamp = add_timestamp(
-                        enhanced, config.timestamp_format, capture_time
+                        processed, config.timestamp_format, capture_time
                     )
 
                     # Update preview frames atomically (both at once)
@@ -408,7 +425,7 @@ def main() -> int:
 
                     # Save images (JPEG with timestamp, AVIF without)
                     current_jpg, current_avif, timestamped = save_images(
-                        with_timestamp, enhanced, config.image, capture_time
+                        with_timestamp, processed, config.image, capture_time
                     )
 
                     # Upload via SFTP
