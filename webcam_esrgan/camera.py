@@ -155,9 +155,7 @@ class Camera:
             print(f"  Failed to parse ZoomFocus response: {e}")
             return None
 
-    def set_zoom_focus(
-        self, zoom: int | None = None, focus: int | None = None
-    ) -> bool:
+    def set_zoom_focus(self, zoom: int | None = None, focus: int | None = None) -> bool:
         """
         Sets the zoom and/or focus position on the camera.
 

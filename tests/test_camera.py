@@ -38,10 +38,7 @@ class TestCamera:
 
     def test_api_url_constructed_correctly(self, camera: Camera) -> None:
         """Test that API URL is correctly constructed."""
-        expected = (
-            "https://192.168.1.100/cgi-bin/api.cgi"
-            "?user=admin&password=secret"
-        )
+        expected = "https://192.168.1.100/cgi-bin/api.cgi?user=admin&password=secret"
         assert camera._api_url == expected
 
     def test_snapshot_url_with_different_channel(self) -> None:
