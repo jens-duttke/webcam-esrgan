@@ -6,6 +6,7 @@ Captures snapshots from IP cameras and enhances image quality using Real-ESRGAN 
 
 - HTTP snapshot capture from IP cameras (Reolink API)
 - AI-based image enhancement using Real-ESRGAN
+- Automatic zoom/focus verification and adjustment before capture
 - Dual output: JPEG for current image, AVIF for history (smaller file size)
 - Automatic SFTP upload to web server
 - Configurable image retention with automatic cleanup
@@ -90,6 +91,21 @@ All settings are configured in `.env.local`:
 | `CAMERA_PASSWORD` | `password` | Camera password |
 | `CAMERA_CHANNEL` | `0` | Camera channel (usually 0) |
 
+### Zoom/Focus Control (optional)
+
+These settings ensure correct zoom and focus before each capture. Leave unset to skip verification.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CAMERA_ZOOM` | - | Expected zoom position (exact match required) |
+| `CAMERA_FOCUS` | - | Expected focus position (with tolerance) |
+| `CAMERA_FOCUS_TOLERANCE` | `5` | Acceptable deviation for focus position |
+
+When configured, the script:
+1. Queries current zoom/focus via Reolink API before each capture
+2. If values don't match: sends adjustment commands and waits up to 30 seconds
+3. If adjustment times out: skips the capture and retries at next interval
+
 ### Capture Settings
 
 | Variable | Default | Description |
@@ -161,15 +177,16 @@ Leave `SFTP_HOST` empty to disable upload.
 ## How It Works
 
 1. Waits for the next clock-aligned interval (e.g., :00, :10, :20... for 10-minute interval)
-2. Fetches snapshot from camera via HTTP
-3. Shrinks image to `TARGET_HEIGHT / UPSCALE_FACTOR`
-4. Upscales using Real-ESRGAN AI
-5. Blends AI result with original (configurable ratio)
-6. Adds timestamp overlay
-7. Saves as JPEG (current) and AVIF (history)
-8. Uploads to SFTP server (if configured)
-9. Cleans up images older than `RETENTION_DAYS`
-10. Updates `webcam_log.json` with file list
+2. Verifies zoom/focus settings (if configured), adjusts if necessary
+3. Fetches snapshot from camera via HTTP
+4. Shrinks image to `TARGET_HEIGHT / UPSCALE_FACTOR`
+5. Upscales using Real-ESRGAN AI
+6. Blends AI result with original (configurable ratio)
+7. Adds timestamp overlay
+8. Saves as JPEG (current) and AVIF (history)
+9. Uploads to SFTP server (if configured)
+10. Cleans up images older than `RETENTION_DAYS`
+11. Updates `webcam_log.json` with file list
 
 ## AI Model
 
@@ -233,6 +250,11 @@ CAMERA_IP=192.168.178.71
 CAMERA_USER=webcam
 CAMERA_PASSWORD=secret123
 CAMERA_CHANNEL=0
+
+# Zoom/Focus (optional)
+CAMERA_ZOOM=25
+CAMERA_FOCUS=224
+CAMERA_FOCUS_TOLERANCE=5
 
 # Capture
 CAPTURE_INTERVAL=1

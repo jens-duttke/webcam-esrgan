@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Zoom and focus control before image capture (`CAMERA_ZOOM`, `CAMERA_FOCUS`, `CAMERA_FOCUS_TOLERANCE` env vars)
+  - Automatically verifies zoom/focus settings match expected values before each capture
+  - Adjusts camera zoom/focus via Reolink API if values are incorrect
+  - Skips capture and waits for next interval if adjustment times out (30 seconds)
+  - Focus tolerance allows for acceptable deviation in focus position
+
+## [1.1.0] - 2026-01-22
+
+### Added
+
 - `captureInterval` field in `webcam_log.json` to indicate the capture interval in minutes
 - Tiling support for Real-ESRGAN processing (`TILE_SIZE` env var, default 400px)
 - Progress bar with ETA for tile processing (using tqdm)

@@ -214,6 +214,14 @@ def main() -> int:
         print(f"SFTP upload: {config.sftp.host}:{config.sftp.path}")
     else:
         print("SFTP upload: disabled")
+    if config.camera.zoom is not None or config.camera.focus is not None:
+        zoom_str = str(config.camera.zoom) if config.camera.zoom is not None else "-"
+        focus_str = (
+            f"{config.camera.focus} (±{config.camera.focus_tolerance})"
+            if config.camera.focus is not None
+            else "-"
+        )
+        print(f"Zoom/Focus: {zoom_str} / {focus_str}")
     print("=" * 50 + "\n")
 
     # Initialize components
@@ -302,6 +310,19 @@ def main() -> int:
     # Main loop
     try:
         while not shutdown_requested:
+            # Ensure zoom/focus are correct before capture (no-op if not configured)
+            if not camera.ensure_zoom_focus(
+                target_zoom=config.camera.zoom,
+                target_focus=config.camera.focus,
+                focus_tolerance=config.camera.focus_tolerance,
+            ):
+                print("  Skipping capture due to zoom/focus adjustment timeout")
+                if not wait_for_next_interval(
+                    config.capture_interval, should_exit, update_preview
+                ):
+                    break
+                continue
+
             # Capture image
             print("Capturing image...")
             frame = camera.fetch_snapshot()

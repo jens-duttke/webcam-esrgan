@@ -18,15 +18,9 @@ class CameraConfig:
     user: str
     password: str
     channel: str = "0"
-
-    @property
-    def snapshot_url(self) -> str:
-        """Constructs the Reolink API snapshot URL."""
-        return (
-            f"https://{self.ip}/cgi-bin/api.cgi"
-            f"?cmd=Snap&channel={self.channel}"
-            f"&user={self.user}&password={self.password}"
-        )
+    zoom: int | None = None
+    focus: int | None = None
+    focus_tolerance: int = 5
 
 
 @dataclass
@@ -116,12 +110,20 @@ class Config:
             print("\nSee .env.example for a template.")
             sys.exit(1)
 
+        # Parse optional camera zoom/focus settings
+        def parse_optional_int(key: str) -> int | None:
+            val = os.getenv(key)
+            return int(val) if val else None
+
         return cls(
             camera=CameraConfig(
                 ip=camera_ip,  # type: ignore[arg-type]
                 user=camera_user,  # type: ignore[arg-type]
                 password=camera_password,  # type: ignore[arg-type]
                 channel=os.getenv("CAMERA_CHANNEL", "0"),
+                zoom=parse_optional_int("CAMERA_ZOOM"),
+                focus=parse_optional_int("CAMERA_FOCUS"),
+                focus_tolerance=int(os.getenv("CAMERA_FOCUS_TOLERANCE", "5")),
             ),
             sftp=SFTPConfig(
                 host=os.getenv("SFTP_HOST"),

@@ -11,32 +11,32 @@ from webcam_esrgan.config import CameraConfig, Config, ImageConfig, SFTPConfig
 class TestCameraConfig:
     """Tests for CameraConfig dataclass."""
 
-    def test_snapshot_url_construction(self) -> None:
-        """Test that snapshot URL is correctly constructed."""
+    def test_zoom_focus_defaults(self) -> None:
+        """Test default values for zoom/focus settings."""
         config = CameraConfig(
             ip="192.168.1.100",
             user="admin",
             password="secret",
-            channel="0",
         )
 
-        expected = (
-            "https://192.168.1.100/cgi-bin/api.cgi"
-            "?cmd=Snap&channel=0&user=admin&password=secret"
-        )
-        assert config.snapshot_url == expected
+        assert config.zoom is None
+        assert config.focus is None
+        assert config.focus_tolerance == 5
 
-    def test_snapshot_url_with_different_channel(self) -> None:
-        """Test snapshot URL with non-default channel."""
+    def test_zoom_focus_custom_values(self) -> None:
+        """Test custom zoom/focus values."""
         config = CameraConfig(
-            ip="10.0.0.50",
-            user="webcam",
-            password="pass123",
-            channel="2",
+            ip="192.168.1.100",
+            user="admin",
+            password="secret",
+            zoom=25,
+            focus=224,
+            focus_tolerance=10,
         )
 
-        assert "channel=2" in config.snapshot_url
-        assert "user=webcam" in config.snapshot_url
+        assert config.zoom == 25
+        assert config.focus == 224
+        assert config.focus_tolerance == 10
 
 
 class TestSFTPConfig:
@@ -220,3 +220,40 @@ class TestConfig:
         assert config.sftp.enabled is True
         assert config.sftp.host == "ftp.example.com"
         assert config.sftp.path == "/httpdocs/webcam"
+
+    @patch.dict(
+        os.environ,
+        {
+            "CAMERA_IP": "192.168.1.100",
+            "CAMERA_USER": "admin",
+            "CAMERA_PASSWORD": "secret",
+            "CAMERA_ZOOM": "25",
+            "CAMERA_FOCUS": "224",
+            "CAMERA_FOCUS_TOLERANCE": "10",
+        },
+        clear=True,
+    )
+    def test_zoom_focus_from_env(self) -> None:
+        """Test that zoom/focus settings are loaded from environment."""
+        config = Config.from_env()
+
+        assert config.camera.zoom == 25
+        assert config.camera.focus == 224
+        assert config.camera.focus_tolerance == 10
+
+    @patch.dict(
+        os.environ,
+        {
+            "CAMERA_IP": "192.168.1.100",
+            "CAMERA_USER": "admin",
+            "CAMERA_PASSWORD": "secret",
+        },
+        clear=True,
+    )
+    def test_zoom_focus_defaults_when_not_set(self) -> None:
+        """Test that zoom/focus have correct defaults when not set."""
+        config = Config.from_env()
+
+        assert config.camera.zoom is None
+        assert config.camera.focus is None
+        assert config.camera.focus_tolerance == 5
