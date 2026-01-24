@@ -242,46 +242,15 @@ pip install mypy
 mypy webcam_esrgan/
 ```
 
-## Example .env.local
+## Configuration
 
-```env
-# Camera
-CAMERA_IP=192.168.178.71
-CAMERA_USER=webcam
-CAMERA_PASSWORD=secret123
-CAMERA_CHANNEL=0
+Copy `.env.example` to `.env.local` and set your camera credentials:
 
-# Zoom/Focus (optional)
-CAMERA_ZOOM=25
-CAMERA_FOCUS=224
-CAMERA_FOCUS_TOLERANCE=5
-
-# Capture
-CAPTURE_INTERVAL=1
-TARGET_HEIGHT=1080
-SHOW_PREVIEW=false
-RETENTION_DAYS=7
-TIMESTAMP_FORMAT=%d.%m.%Y %H:%M
-
-# AI
-UPSCALE_FACTOR=3
-ENHANCEMENT_BLEND=0.8
-
-# Quality
-JPEG_QUALITY=80
-AVIF_QUALITY=65
-AVIF_SPEED=4
-
-# Output
-OUTPUT_DIR=images
-
-# SFTP
-SFTP_HOST=ftp.mywebsite.com
-SFTP_PORT=22
-SFTP_USER=webcam_user
-SFTP_PASSWORD=secret456
-SFTP_PATH=/httpdocs/webcam
+```bash
+cp .env.example .env.local
 ```
+
+See `.env.example` for all available options and their default values.
 
 ## License
 
