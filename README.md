@@ -44,13 +44,13 @@ git clone https://github.com/jens-duttke/webcam-interval-capture.git
 cd webcam-interval-capture
 
 # Create virtual environment
-python -m venv .
+python -m venv venv
 
 # Activate (Windows)
-Scripts\activate
+venv\Scripts\activate
 
 # Activate (Linux/macOS)
-source bin/activate
+source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -194,11 +194,24 @@ Leave `SFTP_HOST` empty to disable upload.
 ## Usage
 
 ```bash
-# Run with virtual environment
-Scripts/python main.py
+# Activate virtual environment first
+venv\Scripts\activate      # Windows
+source venv/bin/activate   # Linux/macOS
 
-# Or if installed as package
-webcam-interval-capture
+# Run the application
+python main.py
+```
+
+### Auto-Update Start Script (Windows)
+
+To always run the latest version with updated dependencies, create a `start.cmd`:
+
+```cmd
+@echo off
+call venv\Scripts\activate.bat
+git pull --ff-only || (echo Update failed - local changes? & pause & exit /b 1)
+pip install -q -r requirements.txt
+python main.py
 ```
 
 ### Preview Controls
