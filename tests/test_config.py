@@ -141,19 +141,16 @@ class TestReferenceConfig:
         config = ReferenceConfig()
 
         assert config.path is None
-        assert config.directory == "archive"
         assert config.hour == 12
 
     def test_custom_values(self) -> None:
         """Test custom values are applied."""
         config = ReferenceConfig(
             path="/path/to/ref.jpg",
-            directory="/custom/archive",
             hour=14,
         )
 
         assert config.path == "/path/to/ref.jpg"
-        assert config.directory == "/custom/archive"
         assert config.hour == 14
 
 
@@ -176,7 +173,6 @@ class TestConfig:
             "AVIF_QUALITY": "50",
             "ENHANCE_MAX_STRENGTH": "0.2",
             "ENHANCE_WAVELET": "haar",
-            "REFERENCE_DIR": "/custom/refs",
             "REFERENCE_HOUR": "14",
         },
         clear=True,
@@ -207,7 +203,6 @@ class TestConfig:
         assert config.enhance.wavelet == "haar"
 
         # Reference settings
-        assert config.reference.directory == "/custom/refs"
         assert config.reference.hour == 14
 
     @patch.dict(
@@ -236,7 +231,6 @@ class TestConfig:
 
         # Reference defaults
         assert config.reference.path is None
-        assert config.reference.directory == "archive"
         assert config.reference.hour == 12
 
     @patch.dict(os.environ, {}, clear=True)
@@ -296,7 +290,6 @@ class TestConfig:
             "CAMERA_USER": "admin",
             "CAMERA_PASSWORD": "secret",
             "REFERENCE_PATH": "/path/to/reference.jpg",
-            "REFERENCE_DIR": "/custom/refs",
             "REFERENCE_HOUR": "10",
         },
         clear=True,
@@ -306,5 +299,4 @@ class TestConfig:
         config = Config.from_env()
 
         assert config.reference.path == "/path/to/reference.jpg"
-        assert config.reference.directory == "/custom/refs"
         assert config.reference.hour == 10

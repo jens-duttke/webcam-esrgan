@@ -70,11 +70,9 @@ class EnhanceConfig:
 class ReferenceConfig:
     """Reference image settings for detail transfer."""
 
-    # Fixed reference image path (None = auto-select)
+    # Fixed reference image path (None = auto-select from OUTPUT_DIR)
     path: str | None = None
-    # Directory to look for auto-selected references
-    directory: str = "archive"
-    # Hour to select reference from (0-23, default noon)
+    # Hour to select reference from (0-23, default noon for best daylight)
     hour: int = 12
 
 
@@ -179,7 +177,6 @@ class Config:
             ),
             reference=ReferenceConfig(
                 path=parse_optional_str("REFERENCE_PATH"),
-                directory=os.getenv("REFERENCE_DIR", "archive"),
                 hour=int(os.getenv("REFERENCE_HOUR", "12")),
             ),
             capture_interval=int(os.getenv("CAPTURE_INTERVAL", "1")),

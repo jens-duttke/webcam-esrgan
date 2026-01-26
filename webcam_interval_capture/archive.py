@@ -7,20 +7,26 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import pillow_avif  # noqa: F401 - registers AVIF codec with Pillow
+from PIL import Image
 
 
 class ReferenceManager:
     """
     Manages daytime reference images for detail transfer.
 
+    The reference image provides high-frequency details (textures, edges) that are
+    transferred to nighttime captures. This preserves real scene details instead of
+    relying on AI-generated textures.
+
     The reference image can be:
     1. A fixed file path (always uses the same reference)
-    2. Auto-selected from previous day's noon capture
+    2. Auto-selected from previous day's capture at the configured hour
     """
 
     def __init__(
         self,
-        archive_dir: Path | str,
+        output_dir: Path | str,
         fixed_reference_path: Path | str | None = None,
         reference_hour: int = 12,
     ) -> None:
@@ -28,13 +34,13 @@ class ReferenceManager:
         Initialize the reference manager.
 
         Args:
-            archive_dir: Directory where archived originals are stored.
+            output_dir: Directory where captured images are stored (for auto-selection).
             fixed_reference_path: Optional fixed reference image path.
                 If provided, always uses this image instead of auto-selecting.
             reference_hour: Hour of day to select reference from (0-23).
-                Default is 12 (noon) for best daylight.
+                Default is 12 (noon) for best daylight conditions.
         """
-        self.archive_dir = Path(archive_dir)
+        self.output_dir = Path(output_dir)
         self.fixed_reference_path = (
             Path(fixed_reference_path) if fixed_reference_path else None
         )
@@ -53,7 +59,7 @@ class ReferenceManager:
         if self.fixed_reference_path is not None:
             return self._load_reference(self.fixed_reference_path)
 
-        # Auto-select from yesterday's archive
+        # Auto-select from yesterday's captures
         yesterday = datetime.now() - timedelta(days=1)
         reference_path = self._find_best_reference(yesterday)
 
@@ -63,7 +69,7 @@ class ReferenceManager:
         return self._load_reference(reference_path)
 
     def _load_reference(self, path: Path) -> np.ndarray | None:
-        """Load and cache a reference image."""
+        """Load and cache a reference image (supports AVIF, JPEG, PNG)."""
         if not path.exists():
             print(f"  Reference not found: {path}")
             return None
@@ -72,10 +78,15 @@ class ReferenceManager:
         if self._cached_reference_path == path and self._cached_reference is not None:
             return self._cached_reference
 
-        # Load new reference
-        img = cv2.imread(str(path))
-        if img is None:
-            print(f"  Could not load reference: {path}")
+        # Load new reference (use Pillow for AVIF support)
+        try:
+            pil_img = Image.open(path)
+            # Convert to RGB if necessary (e.g., RGBA or palette mode)
+            rgb_img = pil_img.convert("RGB") if pil_img.mode != "RGB" else pil_img
+            # Convert RGB (Pillow) to BGR (OpenCV)
+            img = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
+        except Exception as e:
+            print(f"  Could not load reference: {path} ({e})")
             return None
 
         self._cached_reference = img
@@ -87,24 +98,28 @@ class ReferenceManager:
         """
         Find the best reference image for a given date.
 
-        Looks for an image captured around the reference hour.
+        Looks for an image captured around the reference hour in the output directory.
+        Searches for webcam_YYYY-MM-DD-HH-MM.avif files (the timestamped history files).
         """
-        if not self.archive_dir.exists():
+        if not self.output_dir.exists():
             return None
 
-        # Pattern: original_YYYY-MM-DD-HH-MM.jpg (or .png)
+        # Pattern: webcam_YYYY-MM-DD-HH-MM.avif
         date_prefix = date.strftime("%Y-%m-%d")
         target_hour = self.reference_hour
 
         best_match: Path | None = None
         best_hour_diff = 24
 
-        for ext in ("*.jpg", "*.png", "*.jpeg"):
-            for path in self.archive_dir.glob(f"original_{date_prefix}*{ext[1:]}"):
+        for ext in ("*.avif", "*.jpg", "*.png", "*.jpeg"):
+            for path in self.output_dir.glob(f"webcam_{date_prefix}*{ext[1:]}"):
+                # Skip current files (webcam_current.*)
+                if "current" in path.stem:
+                    continue
                 # Extract hour from filename
                 try:
-                    # original_2024-01-15-12-30.jpg -> extract hour (12)
-                    name = path.stem  # original_2024-01-15-12-30
+                    # webcam_2024-01-15-12-30.avif -> extract hour (12)
+                    name = path.stem  # webcam_2024-01-15-12-30
                     parts = name.split("-")
                     if len(parts) >= 5:
                         hour = int(parts[3])

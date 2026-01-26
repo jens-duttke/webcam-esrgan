@@ -28,12 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ENHANCE_LEVELS`: DWT decomposition levels (default 3)
   - `ENHANCE_FUSION_MODE`: Fusion method - "weighted" or "max_energy" (default "weighted")
 - New reference image settings for detail transfer:
-  - `REFERENCE_PATH`: Fixed reference image path (optional, leave empty for auto-select)
-  - `REFERENCE_DIR`: Directory for auto-selected references (default "archive")
+  - `REFERENCE_PATH`: Fixed reference image path (optional, leave empty for auto-select). Supports JPEG, PNG, and AVIF formats.
   - `REFERENCE_HOUR`: Hour to select reference from (default 12/noon)
 - Preview window can now be closed without exiting the program
   - Press `w` to reopen the window after closing it
   - Program continues running in background, capturing and enhancing images
+- Improved README documentation for detail transfer and reference image settings
 
 ### Removed
 
@@ -46,7 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - PyWavelets dependency for DWT-based image fusion
 - Reference manager for daytime reference image selection
-- Automatic reference image selection from previous day's noon capture
+- Automatic reference image selection from previous day's capture in `OUTPUT_DIR`
+- AVIF format support for reference images (via pillow-avif-plugin)
 
 ## [1.1.1] - 2026-01-26
 

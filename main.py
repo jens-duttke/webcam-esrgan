@@ -242,8 +242,8 @@ def main() -> int:
         print(f"Reference: {config.reference.path} (fixed)")
     else:
         print(
-            f"Reference: auto-select from {config.reference.directory}/ "
-            f"(hour {config.reference.hour})"
+            f"Reference: auto-select from {config.image.output_dir}/ "
+            f"(hour {config.reference.hour}:00)"
         )
     if config.sftp.enabled:
         print(f"SFTP upload: {config.sftp.host}:{config.sftp.path}")
@@ -274,7 +274,7 @@ def main() -> int:
 
     # Initialize reference manager for detail transfer
     reference_manager = ReferenceManager(
-        archive_dir=Path(config.reference.directory),
+        output_dir=Path(config.image.output_dir),
         fixed_reference_path=config.reference.path,
         reference_hour=config.reference.hour,
     )

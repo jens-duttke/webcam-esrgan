@@ -129,21 +129,37 @@ This clock-alignment makes it easy to predict when captures will occur and ensur
 
 ### Detail Transfer Enhancement Settings
 
+The detail transfer feature improves nighttime images by borrowing high-frequency details (textures, edges, fine structures) from a daytime **reference image**. This preserves the nighttime atmosphere (lighting, colors) while adding sharpness and detail that cameras typically lose in low light.
+
+**How it works:** The algorithm uses Discrete Wavelet Transform (DWT) to separate images into low-frequency (overall brightness/color) and high-frequency (details/edges) components. It keeps the low-frequency from the nighttime capture but blends in high-frequency details from the daytime reference.
+
+**When is enhancement applied?** The enhancement strength is automatically calculated based on image brightness:
+- **Dark images (night):** Full enhancement up to `ENHANCE_MAX_STRENGTH`
+- **Bright images (day):** Minimal or no enhancement (the image already has good detail)
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENHANCE_MAX_STRENGTH` | `0.15` | Maximum strength for dark images (0-1) |
-| `ENHANCE_BRIGHTNESS_THRESHOLD` | `0.3` | Only enhance below this brightness (0-1) |
-| `ENHANCE_WAVELET` | `db4` | Wavelet type: `db4`, `haar`, `sym4`, `bior1.3` |
-| `ENHANCE_LEVELS` | `3` | DWT decomposition levels (2-4 recommended) |
-| `ENHANCE_FUSION_MODE` | `weighted` | Fusion mode: `weighted` (brightness-based) or `max_energy` (edge-based) |
+| `ENHANCE_MAX_STRENGTH` | `0.15` | Maximum enhancement strength for dark images (0.0-1.0). Higher values transfer more details but may introduce artifacts. Start with 0.1-0.2 and adjust. |
+| `ENHANCE_BRIGHTNESS_THRESHOLD` | `0.3` | Images brighter than this (0.0-1.0) receive reduced or no enhancement. 0.3 means only images below 30% average brightness get full enhancement. |
+| `ENHANCE_WAVELET` | `db4` | Wavelet type for decomposition. `db4` (Daubechies-4) works well for natural images. Alternatives: `haar` (sharper), `sym4` (symmetric), `bior1.3` (biorthogonal). |
+| `ENHANCE_LEVELS` | `3` | Number of DWT decomposition levels (2-4). Higher values capture larger-scale details but increase processing time. 3 is a good balance. |
+| `ENHANCE_FUSION_MODE` | `weighted` | How to combine details: `weighted` blends based on local brightness (recommended), `max_energy` picks whichever image has stronger edges at each location. |
 
 ### Reference Image Settings
 
+The **reference image** is a single daytime photo of the same scene that provides the detail information for enhancement. It should be:
+- Captured during **good daylight conditions** (ideally around noon)
+- The **same scene** from the **same camera position** (zoom/focus unchanged)
+- **High quality** with sharp details
+
+**Example:** If you set `REFERENCE_PATH=C:/webcam/reference.jpg`, this exact image file will be used as the detail source for all nighttime captures.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REFERENCE_PATH` | - | Fixed reference image path (leave empty for auto-select) |
-| `REFERENCE_DIR` | `archive` | Directory for reference images (auto-selection) |
-| `REFERENCE_HOUR` | `12` | Hour to select reference from (0-23) |
+| `REFERENCE_PATH` | - | Path to a specific reference image file (e.g., `C:/webcam/daytime.jpg` or `./reference.avif`). Supports JPEG, PNG, and AVIF formats. Leave empty to use auto-selection. |
+| `REFERENCE_HOUR` | `12` | Hour for auto-selection (0-23). When `REFERENCE_PATH` is empty, the system automatically selects a reference from yesterday's captures. It picks the image closest to this hour. Default is 12 (noon) because midday typically has the best lighting conditions with strong natural light and minimal shadows. |
+
+**Auto-selection:** When `REFERENCE_PATH` is not set, the system automatically looks in `OUTPUT_DIR` for yesterday's capture closest to `REFERENCE_HOUR`. For example, with `REFERENCE_HOUR=12`, it would select `webcam_2024-01-25-12-00.avif` (or the nearest available time). This ensures the reference stays current as seasons and lighting conditions change.
 
 ### Image Quality Settings
 
