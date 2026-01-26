@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from paramiko import SFTPClient
 
-from webcam_esrgan.config import SFTPConfig
+from webcam_interval_capture.config import SFTPConfig
 
 
 class SFTPUploader:

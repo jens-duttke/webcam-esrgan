@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from PIL import Image
 
 if TYPE_CHECKING:
-    from webcam_esrgan.config import ImageConfig
+    from webcam_interval_capture.config import ImageConfig
 
 
 def add_timestamp(
@@ -70,18 +70,20 @@ def add_timestamp(
 
 
 def save_images(
-    image_with_timestamp: NDArray[np.uint8],
-    image_without_timestamp: NDArray[np.uint8],
+    image: NDArray[np.uint8],
     config: ImageConfig,
+    target_height: int,
+    timestamp_format: str = "%Y-%m-%d %H:%M:%S",
     capture_time: datetime | None = None,
 ) -> tuple[Path, Path, Path]:
     """
-    Saves the image as JPEG (with timestamp) and AVIF files (without timestamp).
+    Saves the image as JPEG (resized with timestamp) and AVIF files (original resolution).
 
     Args:
-        image_with_timestamp: Image with timestamp overlay (for JPEG).
-        image_without_timestamp: Image without timestamp overlay (for AVIF files).
+        image: Full-resolution BGR image (without timestamp).
         config: Image quality configuration.
+        target_height: Target height for JPEG (AVIF keeps original resolution).
+        timestamp_format: strftime format string for the timestamp overlay.
         capture_time: The time when the image was captured. If None, uses current time.
 
     Returns:
@@ -103,14 +105,32 @@ def save_images(
     current_avif_path = output_dir / current_avif_filename
     timestamped_path = output_dir / timestamped_filename
 
+    # Get original dimensions
+    h, w = image.shape[:2]
+
+    # Calculate JPEG dimensions (resized to target_height)
+    scale = target_height / h
+    jpeg_w = int(w * scale)
+    jpeg_h = target_height
+
+    # Resize for JPEG
+    jpeg_image: NDArray[np.uint8] = cv2.resize(
+        image,
+        (jpeg_w, jpeg_h),
+        interpolation=cv2.INTER_LANCZOS4,
+    ).astype(np.uint8)
+
+    # Add timestamp to JPEG only
+    jpeg_with_timestamp = add_timestamp(jpeg_image, timestamp_format, capture_time)
+
     # Convert BGR (OpenCV) to RGB (Pillow)
-    jpg_rgb = cv2.cvtColor(image_with_timestamp, cv2.COLOR_BGR2RGB)
+    jpg_rgb = cv2.cvtColor(jpeg_with_timestamp, cv2.COLOR_BGR2RGB)
     pil_jpg = Image.fromarray(jpg_rgb)
 
-    avif_rgb = cv2.cvtColor(image_without_timestamp, cv2.COLOR_BGR2RGB)
+    avif_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     pil_avif = Image.fromarray(avif_rgb)
 
-    # Save current image as optimized JPEG (with timestamp)
+    # Save current image as optimized JPEG (resized with timestamp)
     pil_jpg.save(
         current_jpg_path,
         "JPEG",
@@ -118,7 +138,7 @@ def save_images(
         optimize=True,
     )
 
-    # Save current image as AVIF (without timestamp)
+    # Save current image as AVIF (original resolution, no timestamp)
     pil_avif.save(
         current_avif_path,
         "AVIF",
@@ -127,7 +147,7 @@ def save_images(
         subsampling=config.avif_subsampling,
     )
 
-    # Save timestamped history image as AVIF (without timestamp overlay)
+    # Save timestamped history image as AVIF (original resolution, no timestamp overlay)
     pil_avif.save(
         timestamped_path,
         "AVIF",
@@ -141,8 +161,8 @@ def save_images(
     avif_current_size = os.path.getsize(current_avif_path) / 1024
     avif_history_size = os.path.getsize(timestamped_path) / 1024
     print(
-        f"Images saved: {current_jpg_filename} ({jpg_size:.0f}KB), "
-        f"{current_avif_filename} ({avif_current_size:.0f}KB), "
+        f"Images saved: {current_jpg_filename} ({jpeg_w}x{jpeg_h}, {jpg_size:.0f}KB), "
+        f"{current_avif_filename} ({w}x{h}, {avif_current_size:.0f}KB), "
         f"{timestamped_filename} ({avif_history_size:.0f}KB)"
     )
 

@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from webcam_esrgan.config import CameraConfig
+from webcam_interval_capture.config import CameraConfig
 
 
 @dataclass

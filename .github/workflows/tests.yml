@@ -24,20 +24,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Install system dependencies for pillow-avif-plugin
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libaom-dev libavif-dev
-
       - name: Install dependencies
         run: |
-          uv pip install --system torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          uv pip install --system --no-binary pillow-avif-plugin -r requirements.txt
+          uv pip install --system -r requirements.txt
           uv pip install --system pytest pytest-cov
 
       - name: Run tests
         run: |
-          pytest tests/ -v --cov=webcam_esrgan --cov-report=xml
+          pytest tests/ -v --cov=webcam_interval_capture --cov-report=xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

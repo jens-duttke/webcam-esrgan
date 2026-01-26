@@ -1,4 +1,4 @@
-"""Tests for webcam_esrgan.sftp module."""
+"""Tests for webcam_interval_capture.sftp module."""
 
 import sys
 from datetime import datetime, timedelta
@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from webcam_esrgan.config import SFTPConfig
-from webcam_esrgan.sftp import SFTPUploader
+from webcam_interval_capture.config import SFTPConfig
+from webcam_interval_capture.sftp import SFTPUploader
 
 
 class TestSFTPUploader:

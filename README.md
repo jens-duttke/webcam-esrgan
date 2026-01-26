@@ -1,88 +1,68 @@
-# Webcam Enhancement with Real-ESRGAN
+# Webcam Interval Capture
 
-Captures snapshots from IP cameras and enhances image quality using Real-ESRGAN AI upscaling. Supports automatic SFTP upload for web integration.
+Interval-based image capture and enhancement for IP cameras. Captures snapshots at configurable intervals and optionally enhances image quality by transferring high-frequency details from daytime reference images to nighttime captures.
+
+## How It Works
+
+Instead of using AI to generate synthetic details (like traditional super-resolution), this tool transfers **real details** from a daytime reference image to nighttime captures:
+
+1. **Capture**: Image is captured in original camera resolution (e.g., 4K)
+2. **Reference Selection**: Uses a configured daytime reference image for detail transfer
+3. **Detail Transfer**: Uses Discrete Wavelet Transform (DWT) to transfer high-frequency details (textures, edges) from the reference to the current image
+4. **Preserve Atmosphere**: Nighttime illumination, colors, and atmosphere are preserved - only details are enhanced
+5. **Dual Output**: AVIF saved in original resolution (4K), JPEG resized for web display
+
+### Why This Approach?
+
+- **Real details**: Uses actual scene details instead of AI-hallucinated textures
+- **Scene-aware**: Automatically adapts to scene brightness (more enhancement at night, less during day)
+- **Fast**: No GPU required, pure CPU-based wavelet processing
+- **Lightweight**: No large AI models to download or load
 
 ## Features
 
-- HTTP snapshot capture from IP cameras (Reolink API)
-- AI-based image enhancement using Real-ESRGAN
-- Automatic zoom/focus verification and adjustment before capture
-- Dual output: JPEG for current image, AVIF for history (smaller file size)
-- Automatic SFTP upload to web server
-- Configurable image retention with automatic cleanup
-- JSON log file for web integration
-- Clock-synchronized captures (aligned to minute intervals)
-- All settings configurable via environment variables
+- Captures snapshots from IP cameras (tested with Reolink RLC-811WA)
+- DWT-based detail transfer from daytime reference images
+- Automatic brightness-adaptive enhancement strength
+- Dual output format:
+  - AVIF: Original resolution (4K) for archive/history
+  - JPEG: Resized with timestamp for web display
+- Optional SFTP upload for web publishing
+- Live preview window with original/enhanced comparison
+- Configurable capture intervals aligned to clock
 
 ## Requirements
 
-- Python 3.10-3.12 (3.13+ has compatibility issues with basicsr)
-- IP camera with HTTP snapshot API (tested with Reolink RLC-811WA)
+- Python 3.10 or higher
+- IP camera with HTTP snapshot support
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/jens-duttke/webcam-esrgan.git
-   cd webcam-esrgan
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   venv\Scripts\activate  # Windows
-   source venv/bin/activate  # Linux/macOS
-   ```
-
-3. Install PyTorch (choose one):
-   ```bash
-   # CPU only
-   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-   # CUDA 12.1 (for GPU acceleration)
-   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-   ```
-
-4. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. Create configuration file:
-   ```bash
-   cp .env.example .env.local
-   ```
-
-6. Edit `.env.local` with your settings (see Configuration below).
-
-## Usage
-
 ```bash
-python main.py
+# Clone the repository
+git clone https://github.com/jens-duttke/webcam-interval-capture.git
+cd webcam-interval-capture
+
+# Create virtual environment
+python -m venv .
+
+# Activate (Windows)
+Scripts\activate
+
+# Activate (Linux/macOS)
+source bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
 ```
-
-To stop: Press `q`, `ESC`, or `Ctrl+C`.
-
-### Preview Window Controls
-
-When `SHOW_PREVIEW=true` (default), a preview window displays the enhanced image. You can compare it with the original unprocessed image using these controls:
-
-| Control | Action |
-|---------|--------|
-| **Mouse click (hold)** | Shows original image while held |
-| **Spacebar** | Toggles between original and enhanced image |
-| **w** | Reopens the window if it was closed |
-| **q** or **ESC** | Closes the application |
-
-The preview window:
-- Opens at 600 pixels height with correct aspect ratio
-- Can be freely resized; image maintains aspect ratio with letterboxing (black bars)
-- Both original and enhanced images are scaled to fit the window
-- Can be closed via the X button without stopping the program (reopen with `w`)
 
 ## Configuration
 
 All settings are configured in `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
 
 ### Camera Settings (required)
 
@@ -120,7 +100,7 @@ When configured, the script:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CAPTURE_INTERVAL` | `1` | Minutes between captures (clock-aligned, see below) |
-| `TARGET_HEIGHT` | `1080` | Output resolution height in pixels |
+| `TARGET_HEIGHT` | `1080` | Output height for JPEG in pixels (AVIF keeps original) |
 | `SHOW_PREVIEW` | `true` | Show preview window (`true`/`false`) |
 | `RETENTION_DAYS` | `7` | Days to keep history images on server |
 | `OUTPUT_DIR` | `images` | Local directory for saved images |
@@ -147,12 +127,23 @@ The `CAPTURE_INTERVAL` setting uses **clock-aligned timing** based on midnight (
 
 This clock-alignment makes it easy to predict when captures will occur and ensures that images from different days are taken at exactly the same times (e.g., always at :00, :10, :20, :30, :40, :50 for a 10-minute interval).
 
-### AI Enhancement Settings
+### Detail Transfer Enhancement Settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `UPSCALE_FACTOR` | `3` | AI upscale factor (2 = more original detail, 4 = more AI detail) |
-| `ENHANCEMENT_BLEND` | `0.8` | Blend ratio: 0.0 = original only, 1.0 = AI only |
+| `ENHANCE_MAX_STRENGTH` | `0.15` | Maximum strength for dark images (0-1) |
+| `ENHANCE_BRIGHTNESS_THRESHOLD` | `0.3` | Only enhance below this brightness (0-1) |
+| `ENHANCE_WAVELET` | `db4` | Wavelet type: `db4`, `haar`, `sym4`, `bior1.3` |
+| `ENHANCE_LEVELS` | `3` | DWT decomposition levels (2-4 recommended) |
+| `ENHANCE_FUSION_MODE` | `weighted` | Fusion mode: `weighted` (brightness-based) or `max_energy` (edge-based) |
+
+### Reference Image Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REFERENCE_PATH` | - | Fixed reference image path (leave empty for auto-select) |
+| `REFERENCE_DIR` | `archive` | Directory for reference images (auto-selection) |
+| `REFERENCE_HOUR` | `12` | Hour to select reference from (0-23) |
 
 ### Image Quality Settings
 
@@ -179,88 +170,98 @@ Leave `SFTP_HOST` empty to disable upload.
 
 | File | Format | Description |
 |------|--------|-------------|
-| `webcam_current.jpg` | JPEG | Always the latest image (for webcam services) |
-| `webcam_YYYY-MM-DD-HH-MM.avif` | AVIF | Timestamped history images |
+| `webcam_current.jpg` | JPEG | Latest image, resized to `TARGET_HEIGHT` with timestamp |
+| `webcam_current.avif` | AVIF | Latest image in original resolution (no timestamp) |
+| `webcam_YYYY-MM-DD-HH-MM.avif` | AVIF | Timestamped history images in original resolution |
 | `webcam_log.json` | JSON | List of all history images (for web integration) |
 
-## How It Works
+## Usage
+
+```bash
+# Run with virtual environment
+Scripts/python main.py
+
+# Or if installed as package
+webcam-interval-capture
+```
+
+### Preview Controls
+
+- **Click and hold**: Show original image
+- **Spacebar**: Toggle between original/enhanced
+- **Q or ESC**: Exit program
+- **X button**: Close preview (program continues)
+- **W**: Reopen preview window
+
+## Workflow
 
 1. Waits for the next clock-aligned interval (e.g., :00, :10, :20... for 10-minute interval)
 2. Verifies zoom/focus settings (if configured), adjusts if necessary
 3. Fetches snapshot from camera via HTTP
-4. Shrinks image to `TARGET_HEIGHT / UPSCALE_FACTOR`
-5. Upscales using Real-ESRGAN AI
-6. Blends AI result with original (configurable ratio)
-7. Adds timestamp overlay
-8. Saves as JPEG (current) and AVIF (history)
-9. Uploads to SFTP server (if configured)
-10. Cleans up images older than `RETENTION_DAYS`
-11. Updates `webcam_log.json` with file list
+4. Computes auto-strength based on image brightness (dark = more enhancement)
+5. Applies DWT-based detail transfer from reference image (if configured)
+6. Saves JPEG (resized to `TARGET_HEIGHT` with timestamp)
+7. Saves AVIF (original resolution, no timestamp) for history
+8. Uploads to SFTP server (if configured)
+9. Cleans up images older than `RETENTION_DAYS`
+10. Updates `webcam_log.json` with file list
 
-## AI Model
+## Algorithm
 
-Uses `realesr-general-x4v3.pth` (~5MB), automatically downloaded on first run.
+The detail transfer uses a multi-scale Discrete Wavelet Transform (DWT) approach:
 
-The model uses SRVGGNetCompact architecture, optimized for general image enhancement.
+1. **Decomposition**: Both images are decomposed into approximation (low-frequency) and detail (high-frequency) coefficients using the specified wavelet
+2. **Approximation Preservation**: The approximation coefficients always come from the nighttime image, preserving overall illumination
+3. **Detail Fusion**: Detail coefficients are selectively combined based on:
+   - **Weighted mode**: Blends details based on local brightness (dark areas get more reference details)
+   - **Max-energy mode**: Selects whichever image has stronger local edges
+4. **Reconstruction**: The fused coefficients are reconstructed into the final image
 
-## Project Structure
+### Auto-Strength
+
+The enhancement strength is automatically computed based on image brightness:
+- Dark images (night): Up to `ENHANCE_MAX_STRENGTH`
+- Bright images (day): Approaches 0 (minimal enhancement)
+
+This ensures daytime images remain largely unchanged while nighttime images receive appropriate detail enhancement.
+
+## File Structure
 
 ```
-webcam-esrgan/
-├── main.py                 # Application entry point
-├── webcam_esrgan/          # Main package
-│   ├── __init__.py
-│   ├── config.py           # Configuration management
-│   ├── camera.py           # Camera snapshot capture
-│   ├── enhance.py          # Real-ESRGAN enhancement
-│   ├── sftp.py             # SFTP upload functionality
-│   └── image.py            # Image processing utilities
-├── tests/                  # Unit tests
-│   ├── test_config.py
-│   ├── test_camera.py
-│   ├── test_sftp.py
-│   └── test_image.py
-├── .github/workflows/      # CI/CD
-│   └── tests.yml
-├── .env.example            # Configuration template
-├── requirements.txt        # Dependencies
-└── pyproject.toml          # Project metadata
+webcam-interval-capture/
+├── main.py                     # Main application
+├── webcam_interval_capture/    # Package
+│   ├── archive.py              # Archive and reference management
+│   ├── camera.py               # Camera snapshot handling
+│   ├── config.py               # Configuration management
+│   ├── enhance.py              # DWT detail transfer
+│   ├── image.py                # Image processing/saving
+│   └── sftp.py                 # SFTP upload
+├── tests/                      # Test suite
+├── images/                     # Output images (created automatically)
+├── .env.example                # Configuration template
+└── requirements.txt            # Dependencies
 ```
 
 ## Development
 
-### Running Tests
-
 ```bash
-pip install pytest pytest-cov
-pytest tests/ -v --cov=webcam_esrgan
+# Install dev dependencies
+pip install pytest pytest-cov ruff mypy
+
+# Run tests
+Scripts/python -m pytest -v
+
+# Lint
+Scripts/python -m ruff check .
+
+# Format
+Scripts/python -m ruff format .
+
+# Type check
+Scripts/python -m mypy webcam_interval_capture/
 ```
-
-### Linting
-
-```bash
-pip install ruff
-ruff check .
-ruff format .
-```
-
-### Type Checking
-
-```bash
-pip install mypy
-mypy webcam_esrgan/
-```
-
-## Configuration
-
-Copy `.env.example` to `.env.local` and set your camera credentials:
-
-```bash
-cp .env.example .env.local
-```
-
-See `.env.example` for all available options and their default values.
 
 ## License
 
-MIT
+MIT License

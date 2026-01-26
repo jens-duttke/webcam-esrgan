@@ -1,4 +1,4 @@
-"""Configuration management for webcam_esrgan."""
+"""Configuration management for webcam enhancement."""
 
 from __future__ import annotations
 
@@ -51,23 +51,48 @@ class ImageConfig:
 
 
 @dataclass
+class EnhanceConfig:
+    """Detail transfer enhancement settings."""
+
+    # Maximum auto-strength for dark images (0-1)
+    max_strength: float = 0.15
+    # Only transfer in areas darker than this (0-1)
+    brightness_threshold: float = 0.3
+    # Wavelet type: 'db4', 'haar', 'sym4', 'bior1.3'
+    wavelet: str = "db4"
+    # DWT decomposition levels (2-4 recommended)
+    levels: int = 3
+    # Fusion mode: 'weighted' or 'max_energy'
+    fusion_mode: str = "weighted"
+
+
+@dataclass
+class ReferenceConfig:
+    """Reference image settings for detail transfer."""
+
+    # Fixed reference image path (None = auto-select)
+    path: str | None = None
+    # Directory to look for auto-selected references
+    directory: str = "archive"
+    # Hour to select reference from (0-23, default noon)
+    hour: int = 12
+
+
+@dataclass
 class Config:
     """Main configuration container."""
 
     camera: CameraConfig
     sftp: SFTPConfig = field(default_factory=SFTPConfig)
     image: ImageConfig = field(default_factory=ImageConfig)
+    enhance: EnhanceConfig = field(default_factory=EnhanceConfig)
+    reference: ReferenceConfig = field(default_factory=ReferenceConfig)
 
-    # Capture settings
     capture_interval: int = 1
     target_height: int = 1080
-    upscale_factor: int = 2
-    enhancement_blend: float = 0.8
     show_preview: bool = True
     retention_days: int = 7
     timestamp_format: str = "%Y-%m-%d %H:%M:%S"
-    tile_size: int = 400
-    max_downscale_factor: int = 2
 
     @classmethod
     def from_env(cls, env_path: Path | None = None) -> Config:
@@ -115,6 +140,10 @@ class Config:
             val = os.getenv(key)
             return int(val) if val else None
 
+        def parse_optional_str(key: str) -> str | None:
+            val = os.getenv(key)
+            return val if val else None
+
         return cls(
             camera=CameraConfig(
                 ip=camera_ip,  # type: ignore[arg-type]
@@ -139,13 +168,23 @@ class Config:
                 avif_subsampling=os.getenv("AVIF_SUBSAMPLING", "4:2:0"),
                 output_dir=os.getenv("OUTPUT_DIR", "images"),
             ),
+            enhance=EnhanceConfig(
+                max_strength=float(os.getenv("ENHANCE_MAX_STRENGTH", "0.15")),
+                brightness_threshold=float(
+                    os.getenv("ENHANCE_BRIGHTNESS_THRESHOLD", "0.3")
+                ),
+                wavelet=os.getenv("ENHANCE_WAVELET", "db4"),
+                levels=int(os.getenv("ENHANCE_LEVELS", "3")),
+                fusion_mode=os.getenv("ENHANCE_FUSION_MODE", "weighted"),
+            ),
+            reference=ReferenceConfig(
+                path=parse_optional_str("REFERENCE_PATH"),
+                directory=os.getenv("REFERENCE_DIR", "archive"),
+                hour=int(os.getenv("REFERENCE_HOUR", "12")),
+            ),
             capture_interval=int(os.getenv("CAPTURE_INTERVAL", "1")),
             target_height=int(os.getenv("TARGET_HEIGHT", "1080")),
-            upscale_factor=int(os.getenv("UPSCALE_FACTOR", "2")),
-            enhancement_blend=float(os.getenv("ENHANCEMENT_BLEND", "0.8")),
             show_preview=os.getenv("SHOW_PREVIEW", "true").lower() == "true",
             retention_days=int(os.getenv("RETENTION_DAYS", "7")),
             timestamp_format=os.getenv("TIMESTAMP_FORMAT", "%Y-%m-%d %H:%M:%S"),
-            tile_size=int(os.getenv("TILE_SIZE", "400")),
-            max_downscale_factor=int(os.getenv("MAX_DOWNSCALE_FACTOR", "2")),
         )

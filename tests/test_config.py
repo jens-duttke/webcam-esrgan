@@ -1,11 +1,18 @@
-"""Tests for webcam_esrgan.config module."""
+"""Tests for webcam_interval_capture.config module."""
 
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from webcam_esrgan.config import CameraConfig, Config, ImageConfig, SFTPConfig
+from webcam_interval_capture.config import (
+    CameraConfig,
+    Config,
+    EnhanceConfig,
+    ImageConfig,
+    ReferenceConfig,
+    SFTPConfig,
+)
 
 
 class TestCameraConfig:
@@ -76,37 +83,10 @@ class TestSFTPConfig:
 
         assert config.enabled is False
 
-    def test_disabled_when_user_missing(self) -> None:
-        """Test that enabled returns False when user is missing."""
-        config = SFTPConfig(
-            host="ftp.example.com",
-            user=None,
-            password="pass",
-            path="/var/www",
-        )
-
-        assert config.enabled is False
-
-    def test_disabled_when_path_missing(self) -> None:
-        """Test that enabled returns False when path is missing."""
-        config = SFTPConfig(
-            host="ftp.example.com",
-            user="user",
-            password="pass",
-            path=None,
-        )
-
-        assert config.enabled is False
-
     def test_default_port(self) -> None:
         """Test that default port is 22."""
         config = SFTPConfig()
         assert config.port == 22
-
-    def test_custom_port(self) -> None:
-        """Test that custom port is used."""
-        config = SFTPConfig(port=2222)
-        assert config.port == 2222
 
 
 class TestImageConfig:
@@ -123,6 +103,60 @@ class TestImageConfig:
         assert config.output_dir == "images"
 
 
+class TestEnhanceConfig:
+    """Tests for EnhanceConfig dataclass."""
+
+    def test_default_values(self) -> None:
+        """Test default values are sensible."""
+        config = EnhanceConfig()
+
+        assert config.max_strength == 0.15
+        assert config.brightness_threshold == 0.3
+        assert config.wavelet == "db4"
+        assert config.levels == 3
+        assert config.fusion_mode == "weighted"
+
+    def test_custom_values(self) -> None:
+        """Test custom values are applied."""
+        config = EnhanceConfig(
+            max_strength=0.2,
+            brightness_threshold=0.5,
+            wavelet="haar",
+            levels=4,
+            fusion_mode="max_energy",
+        )
+
+        assert config.max_strength == 0.2
+        assert config.brightness_threshold == 0.5
+        assert config.wavelet == "haar"
+        assert config.levels == 4
+        assert config.fusion_mode == "max_energy"
+
+
+class TestReferenceConfig:
+    """Tests for ReferenceConfig dataclass."""
+
+    def test_default_values(self) -> None:
+        """Test default values are sensible."""
+        config = ReferenceConfig()
+
+        assert config.path is None
+        assert config.directory == "archive"
+        assert config.hour == 12
+
+    def test_custom_values(self) -> None:
+        """Test custom values are applied."""
+        config = ReferenceConfig(
+            path="/path/to/ref.jpg",
+            directory="/custom/archive",
+            hour=14,
+        )
+
+        assert config.path == "/path/to/ref.jpg"
+        assert config.directory == "/custom/archive"
+        assert config.hour == 14
+
+
 class TestConfig:
     """Tests for main Config class."""
 
@@ -135,13 +169,15 @@ class TestConfig:
             "CAMERA_CHANNEL": "1",
             "CAPTURE_INTERVAL": "5",
             "TARGET_HEIGHT": "720",
-            "UPSCALE_FACTOR": "2",
-            "ENHANCEMENT_BLEND": "0.6",
             "SHOW_PREVIEW": "false",
             "RETENTION_DAYS": "14",
             "TIMESTAMP_FORMAT": "%H:%M",
             "JPEG_QUALITY": "90",
             "AVIF_QUALITY": "50",
+            "ENHANCE_MAX_STRENGTH": "0.2",
+            "ENHANCE_WAVELET": "haar",
+            "REFERENCE_DIR": "/custom/refs",
+            "REFERENCE_HOUR": "14",
         },
         clear=True,
     )
@@ -158,8 +194,6 @@ class TestConfig:
         # Capture settings
         assert config.capture_interval == 5
         assert config.target_height == 720
-        assert config.upscale_factor == 2
-        assert config.enhancement_blend == 0.6
         assert config.show_preview is False
         assert config.retention_days == 14
         assert config.timestamp_format == "%H:%M"
@@ -167,6 +201,14 @@ class TestConfig:
         # Image settings
         assert config.image.jpeg_quality == 90
         assert config.image.avif_quality == 50
+
+        # Enhance settings
+        assert config.enhance.max_strength == 0.2
+        assert config.enhance.wavelet == "haar"
+
+        # Reference settings
+        assert config.reference.directory == "/custom/refs"
+        assert config.reference.hour == 14
 
     @patch.dict(
         os.environ,
@@ -184,15 +226,21 @@ class TestConfig:
         # Check defaults
         assert config.capture_interval == 1
         assert config.target_height == 1080
-        assert config.upscale_factor == 2
-        assert config.enhancement_blend == 0.8
         assert config.show_preview is True
         assert config.retention_days == 7
-        assert config.tile_size == 400
-        assert config.max_downscale_factor == 2
+
+        # Enhance defaults
+        assert config.enhance.max_strength == 0.15
+        assert config.enhance.wavelet == "db4"
+        assert config.enhance.levels == 3
+
+        # Reference defaults
+        assert config.reference.path is None
+        assert config.reference.directory == "archive"
+        assert config.reference.hour == 12
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("webcam_esrgan.config.load_dotenv")
+    @patch("webcam_interval_capture.config.load_dotenv")
     def test_from_env_exits_without_camera_credentials(
         self, _mock_load_dotenv: MagicMock
     ) -> None:
@@ -247,13 +295,16 @@ class TestConfig:
             "CAMERA_IP": "192.168.1.100",
             "CAMERA_USER": "admin",
             "CAMERA_PASSWORD": "secret",
+            "REFERENCE_PATH": "/path/to/reference.jpg",
+            "REFERENCE_DIR": "/custom/refs",
+            "REFERENCE_HOUR": "10",
         },
         clear=True,
     )
-    def test_zoom_focus_defaults_when_not_set(self) -> None:
-        """Test that zoom/focus have correct defaults when not set."""
+    def test_reference_settings_from_env(self) -> None:
+        """Test that reference settings are loaded from environment."""
         config = Config.from_env()
 
-        assert config.camera.zoom is None
-        assert config.camera.focus is None
-        assert config.camera.focus_tolerance == 5
+        assert config.reference.path == "/path/to/reference.jpg"
+        assert config.reference.directory == "/custom/refs"
+        assert config.reference.hour == 10

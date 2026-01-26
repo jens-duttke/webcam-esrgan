@@ -1,4 +1,4 @@
-# Webcam Enhancement with Real-ESRGAN
+# Webcam Enhancement with DWT Detail Transfer
 # Install with: pip install -r requirements.txt
 
 # Environment variables
@@ -10,21 +10,11 @@ numpy>=1.24.0
 Pillow>=10.0.0
 pillow-avif-plugin>=1.4.0
 
-# SSL certificates (for model download on Windows)
-certifi>=2023.0.0
-
-# Progress bars
-tqdm>=4.65.0
+# Wavelet transform for detail transfer
+PyWavelets>=1.4.0
 
 # SFTP upload (optional)
 paramiko>=3.0.0
 
-# Real-ESRGAN and dependencies
-# Note: PyTorch must be installed separately depending on your system
-# CPU: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-# CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-realesrgan>=0.3.0
-basicsr>=1.4.2
-
 # Development dependencies (optional)
-# pip install pytest pytest-cov ruff mypy types-tqdm
+# pip install pytest pytest-cov ruff mypy

@@ -1,4 +1,4 @@
-"""Tests for webcam_esrgan.image module."""
+"""Tests for webcam_interval_capture.image module."""
 
 from datetime import datetime
 from pathlib import Path
@@ -8,8 +8,8 @@ import cv2
 import numpy as np
 import pytest
 
-from webcam_esrgan.config import ImageConfig
-from webcam_esrgan.image import add_timestamp, save_images
+from webcam_interval_capture.config import ImageConfig
+from webcam_interval_capture.image import add_timestamp, save_images
 
 
 class TestAddTimestamp:
@@ -39,7 +39,7 @@ class TestAddTimestamp:
         """Test that custom timestamp format is actually used."""
         original = np.zeros((100, 400, 3), dtype=np.uint8)
 
-        with patch("webcam_esrgan.image.datetime") as mock_dt:
+        with patch("webcam_interval_capture.image.datetime") as mock_dt:
             from datetime import datetime
 
             mock_dt.now.return_value = datetime(2026, 1, 21, 14, 30, 45)
@@ -72,7 +72,7 @@ class TestAddTimestamp:
         capture_time = datetime(2020, 6, 15, 10, 30, 45)
 
         # Should NOT call datetime.now() when capture_time is provided
-        with patch("webcam_esrgan.image.datetime") as mock_dt:
+        with patch("webcam_interval_capture.image.datetime") as mock_dt:
             mock_dt.now.return_value = datetime(2026, 1, 21, 14, 0, 0)
 
             result = add_timestamp(
@@ -89,8 +89,8 @@ class TestSaveImages:
 
     @pytest.fixture
     def test_image(self) -> np.ndarray:
-        """Create a test BGR image."""
-        return np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
+        """Create a test BGR image (4K resolution)."""
+        return np.random.randint(0, 256, (2160, 3840, 3), dtype=np.uint8)
 
     @pytest.fixture
     def image_config(self, tmp_path: Path) -> ImageConfig:
@@ -110,7 +110,7 @@ class TestSaveImages:
         output_dir = Path(image_config.output_dir)
         assert not output_dir.exists()
 
-        save_images(test_image, test_image, image_config)
+        save_images(test_image, image_config, target_height=1080)
 
         assert output_dir.exists()
         assert output_dir.is_dir()
@@ -120,7 +120,7 @@ class TestSaveImages:
     ) -> None:
         """Test that correct paths are returned."""
         current_jpg, current_avif, timestamped = save_images(
-            test_image, test_image, image_config
+            test_image, image_config, target_height=1080
         )
 
         assert current_jpg.name == "webcam_current.jpg"
@@ -132,7 +132,7 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that JPEG file is created."""
-        current_jpg, _, _ = save_images(test_image, test_image, image_config)
+        current_jpg, _, _ = save_images(test_image, image_config, target_height=1080)
 
         assert current_jpg.exists()
         assert current_jpg.stat().st_size > 0
@@ -141,7 +141,7 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that current AVIF file is created."""
-        _, current_avif, _ = save_images(test_image, test_image, image_config)
+        _, current_avif, _ = save_images(test_image, image_config, target_height=1080)
 
         assert current_avif.exists()
         assert current_avif.stat().st_size > 0
@@ -150,27 +150,42 @@ class TestSaveImages:
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that timestamped AVIF file is created."""
-        _, _, timestamped = save_images(test_image, test_image, image_config)
+        _, _, timestamped = save_images(test_image, image_config, target_height=1080)
 
         assert timestamped.exists()
         assert timestamped.stat().st_size > 0
 
-    def test_jpeg_is_valid_image(
+    def test_jpeg_is_resized(
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
-        """Test that saved JPEG can be read back."""
-        current_jpg, _, _ = save_images(test_image, test_image, image_config)
+        """Test that JPEG is resized to target_height."""
+        current_jpg, _, _ = save_images(test_image, image_config, target_height=1080)
 
         loaded = cv2.imread(str(current_jpg))
 
         assert loaded is not None
-        assert loaded.shape == test_image.shape
+        assert loaded.shape[0] == 1080  # Resized height
+        # Aspect ratio preserved: 3840/2160 * 1080 = 1920
+        assert loaded.shape[1] == 1920
+
+    def test_avif_keeps_original_resolution(
+        self, test_image: np.ndarray, image_config: ImageConfig
+    ) -> None:
+        """Test that AVIF keeps original resolution."""
+        _, current_avif, _ = save_images(test_image, image_config, target_height=1080)
+
+        from PIL import Image
+
+        loaded = Image.open(current_avif)
+
+        # AVIF should be original resolution
+        assert loaded.size == (3840, 2160)  # width, height
 
     def test_timestamped_filename_format(
         self, test_image: np.ndarray, image_config: ImageConfig
     ) -> None:
         """Test that timestamped filename follows expected format."""
-        _, _, timestamped = save_images(test_image, test_image, image_config)
+        _, _, timestamped = save_images(test_image, image_config, target_height=1080)
 
         # Format: webcam_YYYY-MM-DD-HH-MM.avif
         name = timestamped.stem  # webcam_2026-01-21-12-00
@@ -190,7 +205,7 @@ class TestSaveImages:
         # First save with black image
         black_image = np.zeros((480, 640, 3), dtype=np.uint8)
         current_jpg_1, current_avif_1, _ = save_images(
-            black_image, black_image, image_config
+            black_image, image_config, target_height=240
         )
         jpg_content_1 = current_jpg_1.read_bytes()
         avif_content_1 = current_avif_1.read_bytes()
@@ -198,7 +213,7 @@ class TestSaveImages:
         # Second save with white image
         white_image = np.ones((480, 640, 3), dtype=np.uint8) * 255
         current_jpg_2, current_avif_2, _ = save_images(
-            white_image, white_image, image_config
+            white_image, image_config, target_height=240
         )
         jpg_content_2 = current_jpg_2.read_bytes()
         avif_content_2 = current_avif_2.read_bytes()
@@ -215,11 +230,15 @@ class TestSaveImages:
         """Test that multiple saves create multiple timestamped files."""
         # First save with explicit capture_time
         capture_time_1 = datetime(2026, 1, 21, 10, 0, 0)
-        _, _, path1 = save_images(test_image, test_image, image_config, capture_time_1)
+        _, _, path1 = save_images(
+            test_image, image_config, 1080, capture_time=capture_time_1
+        )
 
         # Second save with different capture_time
         capture_time_2 = datetime(2026, 1, 21, 10, 1, 0)
-        _, _, path2 = save_images(test_image, test_image, image_config, capture_time_2)
+        _, _, path2 = save_images(
+            test_image, image_config, 1080, capture_time=capture_time_2
+        )
 
         assert path1.name != path2.name
         assert path1.exists()
@@ -231,7 +250,7 @@ class TestSaveImages:
         """Test that capture_time is used for the timestamped filename."""
         capture_time = datetime(2020, 6, 15, 14, 30, 0)
         _, _, timestamped = save_images(
-            test_image, test_image, image_config, capture_time
+            test_image, image_config, 1080, capture_time=capture_time
         )
 
         # Filename should reflect the capture_time, not current time
@@ -246,7 +265,7 @@ class TestSaveImages:
             jpeg_quality=95,
             output_dir=str(tmp_path / "high"),
         )
-        high_path, _, _ = save_images(test_image, test_image, high_config)
+        high_path, _, _ = save_images(test_image, high_config, target_height=1080)
         high_size = high_path.stat().st_size
 
         # Low quality
@@ -254,7 +273,7 @@ class TestSaveImages:
             jpeg_quality=30,
             output_dir=str(tmp_path / "low"),
         )
-        low_path, _, _ = save_images(test_image, test_image, low_config)
+        low_path, _, _ = save_images(test_image, low_config, target_height=1080)
         low_size = low_path.stat().st_size
 
         # High quality should be larger

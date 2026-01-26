@@ -3,16 +3,16 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "webcam-esrgan"
-version = "1.0.0"
-description = "AI-powered webcam image enhancement using Real-ESRGAN"
+name = "webcam-interval-capture"
+version = "2.0.0"
+description = "Interval capture and enhancement for IP camera snapshots"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 authors = [
     {name = "Jens Duttke"},
 ]
-keywords = ["webcam", "esrgan", "image-enhancement", "ai", "super-resolution"]
+keywords = ["webcam", "interval-capture", "ip-camera", "dwt", "image-enhancement"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Graphics :: Graphics Conversion",
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
@@ -30,10 +31,7 @@ dependencies = [
     "numpy>=1.24.0",
     "Pillow>=10.0.0",
     "pillow-avif-plugin>=1.4.0",
-    "realesrgan>=0.3.0",
-    "basicsr>=1.4.0",
-    "certifi>=2023.0.0",
-    "tqdm>=4.65.0",
+    "PyWavelets>=1.4.0",
 ]
 
 [project.optional-dependencies]
@@ -43,19 +41,18 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
-    "types-tqdm>=4.0.0",
 ]
 
 [project.scripts]
-webcam-esrgan = "main:main"
+webcam-interval-capture = "main:main"
 
 [project.urls]
-Homepage = "https://github.com/jens-duttke/webcam-esrgan"
-Repository = "https://github.com/jens-duttke/webcam-esrgan"
-Issues = "https://github.com/jens-duttke/webcam-esrgan/issues"
+Homepage = "https://github.com/jens-duttke/webcam-interval-capture"
+Repository = "https://github.com/jens-duttke/webcam-interval-capture"
+Issues = "https://github.com/jens-duttke/webcam-interval-capture/issues"
 
 [tool.setuptools.packages.find]
-include = ["webcam_esrgan*"]
+include = ["webcam_interval_capture*"]
 
 [tool.ruff]
 target-version = "py310"
@@ -79,7 +76,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["webcam_esrgan"]
+known-first-party = ["webcam_interval_capture"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -93,10 +90,8 @@ module = [
     "cv2.*",
     "PIL.*",
     "pillow_avif.*",
-    "realesrgan.*",
-    "basicsr.*",
     "paramiko.*",
-    "torchvision.*",
+    "pywt.*",
 ]
 ignore_missing_imports = true
 

@@ -1,84 +1,187 @@
-"""Tests for webcam_esrgan.enhance module."""
-
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+"""Tests for webcam_interval_capture.enhance module."""
 
 import numpy as np
 import pytest
 
-from webcam_esrgan.enhance import (
+from webcam_interval_capture.enhance import (
     Enhancer,
-    _apply_torchvision_workaround,
-    _download_file,
+    compute_auto_strength,
+    dwt_decompose,
+    dwt_fusion,
+    dwt_reconstruct,
+    from_lab,
+    to_lab,
 )
 
 
-class TestDownloadFile:
-    """Tests for the _download_file helper function."""
+class TestComputeAutoStrength:
+    """Tests for the compute_auto_strength function."""
 
-    def test_download_with_certifi(self, tmp_path: Path) -> None:
-        """Test download using certifi SSL context."""
-        mock_certifi = MagicMock()
-        mock_certifi.where.return_value = "/path/to/cacert.pem"
+    def test_dark_image_returns_max_strength(self) -> None:
+        """Test that a completely dark image returns max_strength."""
+        dark_image = np.zeros((100, 100, 3), dtype=np.uint8)
+        strength = compute_auto_strength(dark_image, max_strength=0.15)
+        assert strength == pytest.approx(0.15, abs=0.01)
 
-        mock_response = MagicMock()
-        mock_response.read.return_value = b"test data"
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+    def test_bright_image_returns_low_strength(self) -> None:
+        """Test that a completely bright image returns near-zero strength."""
+        bright_image = np.ones((100, 100, 3), dtype=np.uint8) * 255
+        strength = compute_auto_strength(bright_image, max_strength=0.15)
+        assert strength < 0.01
 
-        dest = tmp_path / "test_file"
+    def test_medium_brightness_returns_medium_strength(self) -> None:
+        """Test that medium brightness returns proportional strength."""
+        # 50% brightness
+        medium_image = np.ones((100, 100, 3), dtype=np.uint8) * 128
+        strength = compute_auto_strength(medium_image, max_strength=0.15)
+        # Should be approximately 0.5 * 0.15 = 0.075
+        assert 0.05 < strength < 0.10
 
-        with (
-            patch.dict(sys.modules, {"certifi": mock_certifi}),
-            patch("webcam_esrgan.enhance.ssl.create_default_context") as mock_ssl,
-            patch("urllib.request.urlopen", return_value=mock_response) as mock_urlopen,
-        ):
-            _download_file("https://example.com/file", dest)
+    def test_grayscale_image(self) -> None:
+        """Test that grayscale images work correctly."""
+        gray_image = np.ones((100, 100), dtype=np.uint8) * 64
+        strength = compute_auto_strength(gray_image, max_strength=0.2)
+        assert strength > 0.1
 
-            mock_certifi.where.assert_called_once()
-            mock_ssl.assert_called_once_with(cafile="/path/to/cacert.pem")
-            mock_urlopen.assert_called_once()
-            assert dest.read_bytes() == b"test data"
-
-    def test_download_fallback_without_certifi(self, tmp_path: Path) -> None:
-        """Test download falls back to system certs if certifi not available."""
-        mock_response = MagicMock()
-        mock_response.read.return_value = b"test data"
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
-
-        dest = tmp_path / "test_file"
-
-        # Remove certifi from sys.modules to force ImportError
-        with (
-            patch.dict(sys.modules, {"certifi": None}),
-            patch("webcam_esrgan.enhance.ssl.create_default_context") as mock_ssl,
-            patch("urllib.request.urlopen", return_value=mock_response),
-        ):
-            _download_file("https://example.com/file", dest)
-
-            # Should call create_default_context without cafile argument
-            mock_ssl.assert_called_once_with()
+    def test_custom_max_strength(self) -> None:
+        """Test that custom max_strength is respected."""
+        dark_image = np.zeros((100, 100, 3), dtype=np.uint8)
+        strength = compute_auto_strength(dark_image, max_strength=0.5)
+        assert strength == pytest.approx(0.5, abs=0.01)
 
 
-class TestTorchvisionWorkaround:
-    """Tests for the torchvision compatibility workaround."""
+class TestDWTFunctions:
+    """Tests for DWT decomposition and reconstruction."""
 
-    def test_adds_rgb_to_grayscale_attribute(self) -> None:
-        """Test that workaround adds rgb_to_grayscale if missing."""
-        mock_F_tv = MagicMock()
-        mock_F_tv.to_grayscale = MagicMock()
-        del mock_F_tv.rgb_to_grayscale  # Simulate missing attribute
+    @pytest.fixture
+    def test_image(self) -> np.ndarray:
+        """Create a test grayscale image."""
+        return np.random.rand(64, 64).astype(np.float32) * 255
 
-        with patch.dict(
-            sys.modules,
-            {"torchvision.transforms.functional": mock_F_tv},
-        ):
-            _apply_torchvision_workaround()
+    def test_decompose_returns_coefficients(self, test_image: np.ndarray) -> None:
+        """Test that decomposition returns coefficient list."""
+        coeffs = dwt_decompose(test_image, wavelet="db4", levels=3)
+        # Should have 4 elements: [cA3, (cH3,cV3,cD3), (cH2,cV2,cD2), (cH1,cV1,cD1)]
+        assert len(coeffs) == 4
 
-            # The workaround should add rgb_to_grayscale
-            assert mock_F_tv.rgb_to_grayscale == mock_F_tv.to_grayscale
+    def test_reconstruct_recovers_image(self, test_image: np.ndarray) -> None:
+        """Test that reconstruction recovers the original image."""
+        coeffs = dwt_decompose(test_image, wavelet="db4", levels=3)
+        reconstructed = dwt_reconstruct(coeffs, wavelet="db4")
+
+        # Should be close to original (within floating-point precision)
+        h, w = test_image.shape
+        reconstructed_cropped = reconstructed[:h, :w]
+        np.testing.assert_allclose(reconstructed_cropped, test_image, rtol=1e-2)
+
+    def test_different_wavelets(self, test_image: np.ndarray) -> None:
+        """Test that different wavelets work."""
+        for wavelet in ["db4", "haar", "sym4"]:
+            coeffs = dwt_decompose(test_image, wavelet=wavelet, levels=2)
+            reconstructed = dwt_reconstruct(coeffs, wavelet=wavelet)
+            assert reconstructed is not None
+
+
+class TestDWTFusion:
+    """Tests for DWT-based image fusion."""
+
+    @pytest.fixture
+    def day_image(self) -> np.ndarray:
+        """Create a test day image (high detail)."""
+        img = np.zeros((64, 64), dtype=np.float32)
+        # Add some texture
+        img[::2, ::2] = 200
+        img[1::2, 1::2] = 200
+        return img
+
+    @pytest.fixture
+    def night_image(self) -> np.ndarray:
+        """Create a test night image (low detail, dark)."""
+        return np.ones((64, 64), dtype=np.float32) * 50
+
+    @pytest.fixture
+    def brightness_mask(self) -> np.ndarray:
+        """Create a test brightness mask."""
+        return np.ones((64, 64), dtype=np.float32) * 0.8
+
+    def test_fusion_preserves_night_illumination(
+        self,
+        day_image: np.ndarray,
+        night_image: np.ndarray,
+        brightness_mask: np.ndarray,
+    ) -> None:
+        """Test that fusion preserves overall night illumination."""
+        fused = dwt_fusion(
+            day_image,
+            night_image,
+            brightness_mask,
+            wavelet="db4",
+            levels=2,
+            strength=0.5,
+            fusion_mode="weighted",
+        )
+
+        # Mean should be closer to night than day
+        night_mean = night_image.mean()
+        day_mean = day_image.mean()
+        fused_mean = fused.mean()
+
+        # Fused mean should be between night and day, but closer to night
+        assert fused_mean < day_mean
+        assert abs(fused_mean - night_mean) < abs(fused_mean - day_mean)
+
+    def test_fusion_with_zero_strength(
+        self,
+        day_image: np.ndarray,
+        night_image: np.ndarray,
+        brightness_mask: np.ndarray,
+    ) -> None:
+        """Test that zero strength returns night image."""
+        fused = dwt_fusion(
+            day_image,
+            night_image,
+            brightness_mask,
+            strength=0.0,
+        )
+
+        # Should be close to night image
+        h, w = night_image.shape
+        fused_cropped = fused[:h, :w]
+        np.testing.assert_allclose(fused_cropped, night_image, rtol=0.1)
+
+
+class TestColorSpaceConversion:
+    """Tests for LAB color space conversion."""
+
+    @pytest.fixture
+    def test_bgr(self) -> np.ndarray:
+        """Create a test BGR image."""
+        return np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8)
+
+    def test_to_lab_returns_three_channels(self, test_bgr: np.ndarray) -> None:
+        """Test that to_lab returns three float32 channels."""
+        L, a, b = to_lab(test_bgr)
+
+        assert L.dtype == np.float32
+        assert a.dtype == np.float32
+        assert b.dtype == np.float32
+        assert L.shape == test_bgr.shape[:2]
+
+    def test_from_lab_returns_bgr(self, test_bgr: np.ndarray) -> None:
+        """Test that from_lab returns BGR uint8 image."""
+        L, a, b = to_lab(test_bgr)
+        result = from_lab(L, a, b)
+
+        assert result.dtype == np.uint8
+        assert result.shape == test_bgr.shape
+
+    def test_roundtrip_conversion(self, test_bgr: np.ndarray) -> None:
+        """Test that LAB roundtrip preserves image."""
+        L, a, b = to_lab(test_bgr)
+        result = from_lab(L, a, b)
+
+        # Should be close to original (LAB conversion has some precision loss)
+        np.testing.assert_allclose(result, test_bgr, atol=25)
 
 
 class TestEnhancerInit:
@@ -88,348 +191,113 @@ class TestEnhancerInit:
         """Test that Enhancer has sensible defaults."""
         enhancer = Enhancer()
 
-        assert enhancer.target_height == 1080
-        assert enhancer.upscale_factor == 2
-        assert enhancer.enhancement_blend == 0.8
-        assert enhancer.weights_dir == Path.cwd() / "weights"
-        assert enhancer.tile_size == 400
-        assert enhancer.max_downscale_factor == 2
+        assert enhancer.max_strength == 0.15
+        assert enhancer.brightness_threshold == 0.3
+        assert enhancer.wavelet == "db4"
+        assert enhancer.levels == 3
+        assert enhancer.fusion_mode == "weighted"
 
     def test_custom_values(self) -> None:
         """Test that custom values are applied."""
         enhancer = Enhancer(
-            target_height=720,
-            upscale_factor=2,
-            enhancement_blend=0.5,
-            weights_dir=Path("/custom/weights"),
+            max_strength=0.2,
+            brightness_threshold=0.5,
+            wavelet="haar",
+            levels=4,
+            fusion_mode="max_energy",
         )
 
-        assert enhancer.target_height == 720
-        assert enhancer.upscale_factor == 2
-        assert enhancer.enhancement_blend == 0.5
-        assert enhancer.weights_dir == Path("/custom/weights")
-
-    def test_is_initialized_false_by_default(self) -> None:
-        """Test that enhancer is not initialized by default."""
-        enhancer = Enhancer()
-
-        assert enhancer.is_initialized is False
-
-    def test_model_url_and_filename(self) -> None:
-        """Test that model URL and filename are set correctly."""
-        assert Enhancer.MODEL_FILENAME == "realesr-general-x4v3.pth"
-        assert "realesr-general-x4v3.pth" in Enhancer.MODEL_URL
-
-
-class TestEnhancerInitialize:
-    """Tests for Enhancer.initialize() method."""
-
-    @pytest.fixture
-    def enhancer(self, tmp_path: Path) -> Enhancer:
-        """Create an enhancer with temp weights directory."""
-        return Enhancer(weights_dir=tmp_path)
-
-    def test_initialize_import_error(self, enhancer: Enhancer) -> None:
-        """Test initialization fails gracefully when realesrgan not installed."""
-        # Remove the module if it exists
-        with (
-            patch.dict(sys.modules, {"realesrgan": None}),
-            patch(
-                "webcam_esrgan.enhance._apply_torchvision_workaround",
-                side_effect=ImportError("No module named 'realesrgan'"),
-            ),
-        ):
-            result = enhancer.initialize()
-
-            assert result is False
-            assert enhancer.is_initialized is False
-
-    def test_initialize_success(self, enhancer: Enhancer) -> None:
-        """Test successful initialization with mocked dependencies."""
-        mock_torch = MagicMock()
-        mock_torch.cuda.is_available.return_value = False
-
-        mock_model = MagicMock()
-        mock_srvgg = MagicMock(return_value=mock_model)
-
-        mock_upsampler = MagicMock()
-        mock_realesrgan = MagicMock()
-        mock_realesrgan.RealESRGANer.return_value = mock_upsampler
-
-        # Create a fake model file
-        model_path = enhancer.weights_dir / Enhancer.MODEL_FILENAME
-        enhancer.weights_dir.mkdir(parents=True, exist_ok=True)
-        model_path.write_bytes(b"fake model data")
-
-        with (
-            patch("webcam_esrgan.enhance._apply_torchvision_workaround"),
-            patch.dict(
-                sys.modules,
-                {
-                    "realesrgan": mock_realesrgan,
-                    "realesrgan.archs.srvgg_arch": MagicMock(
-                        SRVGGNetCompact=mock_srvgg
-                    ),
-                    "torch": mock_torch,
-                },
-            ),
-            patch(
-                "webcam_esrgan.enhance.RealESRGANer",
-                mock_realesrgan.RealESRGANer,
-                create=True,
-            ),
-        ):
-            result = enhancer.initialize()
-
-            assert result is True
-            assert enhancer.is_initialized is True
-
-    def test_initialize_downloads_model_if_missing(self, enhancer: Enhancer) -> None:
-        """Test that model is downloaded if not present."""
-        mock_torch = MagicMock()
-        mock_torch.cuda.is_available.return_value = False
-        mock_download = MagicMock()
-
-        with (
-            patch("webcam_esrgan.enhance._apply_torchvision_workaround"),
-            patch("webcam_esrgan.enhance._download_file", mock_download),
-            patch.dict(
-                sys.modules,
-                {
-                    "realesrgan": MagicMock(),
-                    "realesrgan.archs.srvgg_arch": MagicMock(),
-                    "torch": mock_torch,
-                },
-            ),
-        ):
-            # Model file doesn't exist, should trigger download
-            enhancer.initialize()
-
-            mock_download.assert_called_once()
-            call_args = mock_download.call_args[0]
-            assert call_args[0] == Enhancer.MODEL_URL
-
-    def test_initialize_with_cuda(self, enhancer: Enhancer) -> None:
-        """Test initialization detects CUDA."""
-        mock_torch = MagicMock()
-        mock_torch.cuda.is_available.return_value = True
-        mock_torch.cuda.get_device_name.return_value = "NVIDIA GeForce RTX 3080"
-
-        mock_upsampler = MagicMock()
-        mock_realesrgan = MagicMock()
-        mock_realesrgan.RealESRGANer.return_value = mock_upsampler
-
-        model_path = enhancer.weights_dir / Enhancer.MODEL_FILENAME
-        enhancer.weights_dir.mkdir(parents=True, exist_ok=True)
-        model_path.write_bytes(b"fake model data")
-
-        with (
-            patch("webcam_esrgan.enhance._apply_torchvision_workaround"),
-            patch.dict(
-                sys.modules,
-                {
-                    "realesrgan": mock_realesrgan,
-                    "realesrgan.archs.srvgg_arch": MagicMock(),
-                    "torch": mock_torch,
-                },
-            ),
-        ):
-            enhancer.initialize()
-
-            # Check that RealESRGANer was called with GPU settings
-            call_kwargs = mock_realesrgan.RealESRGANer.call_args[1]
-            assert call_kwargs["device"] == "cuda"
-            assert call_kwargs["half"] is True
-
-    def test_initialize_general_exception(self, enhancer: Enhancer) -> None:
-        """Test initialization handles general exceptions."""
-        with patch(
-            "webcam_esrgan.enhance._apply_torchvision_workaround",
-            side_effect=RuntimeError("Something went wrong"),
-        ):
-            result = enhancer.initialize()
-
-            assert result is False
-            assert enhancer.is_initialized is False
+        assert enhancer.max_strength == 0.2
+        assert enhancer.brightness_threshold == 0.5
+        assert enhancer.wavelet == "haar"
+        assert enhancer.levels == 4
+        assert enhancer.fusion_mode == "max_energy"
 
 
 class TestEnhancerEnhance:
     """Tests for Enhancer.enhance() method."""
 
     @pytest.fixture
-    def test_image(self) -> np.ndarray:
-        """Create a test image."""
-        return np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
+    def test_frame(self) -> np.ndarray:
+        """Create a test frame (night image)."""
+        return np.ones((480, 640, 3), dtype=np.uint8) * 50
 
-    def test_enhance_returns_none_when_not_initialized(
-        self, test_image: np.ndarray
+    @pytest.fixture
+    def test_reference(self) -> np.ndarray:
+        """Create a test reference (day image)."""
+        img = np.ones((480, 640, 3), dtype=np.uint8) * 150
+        # Add some detail
+        img[::2, ::2, :] = 200
+        return img
+
+    def test_enhance_without_reference_returns_original(
+        self, test_frame: np.ndarray
     ) -> None:
-        """Test that enhance returns None if not initialized."""
+        """Test that enhance without reference returns original resolution."""
         enhancer = Enhancer()
-
-        result = enhancer.enhance(test_image)
-
-        assert result is None
-
-    def test_enhance_success(self, test_image: np.ndarray) -> None:
-        """Test successful enhancement."""
-        enhancer = Enhancer(target_height=240, upscale_factor=2)
-
-        # Create a mock upsampler
-        mock_upsampler = MagicMock()
-        # Return a properly sized RGB image (after 2x upscale)
-        enhanced_h = 240  # Target height
-        enhanced_w = 320
-        mock_enhanced = np.random.randint(
-            0, 256, (enhanced_h, enhanced_w, 3), dtype=np.uint8
-        )
-        mock_upsampler.enhance.return_value = (mock_enhanced, None)
-        enhancer._upsampler = mock_upsampler
-
-        result = enhancer.enhance(test_image)
+        result = enhancer.enhance(test_frame, reference=None)
 
         assert result is not None
-        assert result.shape[0] == 240  # Target height
-        assert result.dtype == np.uint8
+        assert result.shape == test_frame.shape
 
-    def test_enhance_resizes_to_target_height(self) -> None:
-        """Test that output is resized when it doesn't match target height."""
-        enhancer = Enhancer(target_height=480, upscale_factor=2)
-
-        # Input image
-        test_image = np.random.randint(0, 256, (200, 300, 3), dtype=np.uint8)
-
-        # Mock upsampler returns wrong height (needs resizing)
-        mock_upsampler = MagicMock()
-        mock_enhanced = np.random.randint(
-            0, 256, (400, 600, 3), dtype=np.uint8
-        )  # Not 480!
-        mock_upsampler.enhance.return_value = (mock_enhanced, None)
-        enhancer._upsampler = mock_upsampler
-
-        result = enhancer.enhance(test_image)
+    def test_enhance_with_reference(
+        self, test_frame: np.ndarray, test_reference: np.ndarray
+    ) -> None:
+        """Test that enhance with reference produces enhanced result."""
+        enhancer = Enhancer(max_strength=0.15)
+        result = enhancer.enhance(test_frame, reference=test_reference)
 
         assert result is not None
-        # Should be resized to exactly 480
-        assert result.shape[0] == 480
+        assert result.shape == test_frame.shape
 
-    def test_enhance_with_pre_shrink(self) -> None:
-        """Test that large images are pre-shrunk before enhancement."""
-        # Create a large image (larger than target_height / upscale_factor)
-        large_image = np.random.randint(0, 256, (1080, 1920, 3), dtype=np.uint8)
-
-        enhancer = Enhancer(target_height=720, upscale_factor=3)
-        # target_pre_h = 720 / 3 = 240, so 1080 > 240 → pre-shrink
-
-        mock_upsampler = MagicMock()
-        mock_enhanced = np.random.randint(0, 256, (720, 1280, 3), dtype=np.uint8)
-        mock_upsampler.enhance.return_value = (mock_enhanced, None)
-        enhancer._upsampler = mock_upsampler
-
-        result = enhancer.enhance(large_image)
+    def test_enhance_preserves_original_resolution(
+        self, test_frame: np.ndarray, test_reference: np.ndarray
+    ) -> None:
+        """Test that enhance preserves original resolution."""
+        enhancer = Enhancer()
+        result = enhancer.enhance(test_frame, reference=test_reference)
 
         assert result is not None
-        # Verify upsampler received a smaller image (pre-shrunk)
-        call_args = mock_upsampler.enhance.call_args[0][0]
-        assert call_args.shape[0] < large_image.shape[0]
+        assert result.shape == test_frame.shape
 
-    def test_enhance_without_pre_shrink(self) -> None:
-        """Test that small images are NOT pre-shrunk."""
-        # Create a small image (smaller than target_height / upscale_factor)
-        small_image = np.random.randint(0, 256, (200, 300, 3), dtype=np.uint8)
+    def test_enhance_bright_image_skips_enhancement(self) -> None:
+        """Test that bright images skip enhancement."""
+        bright_frame = np.ones((480, 640, 3), dtype=np.uint8) * 250
+        reference = np.ones((480, 640, 3), dtype=np.uint8) * 200
 
-        enhancer = Enhancer(target_height=720, upscale_factor=3)
-        # target_pre_h = 720 / 3 = 240, so 200 < 240 → no pre-shrink
-
-        mock_upsampler = MagicMock()
-        mock_enhanced = np.random.randint(0, 256, (600, 900, 3), dtype=np.uint8)
-        mock_upsampler.enhance.return_value = (mock_enhanced, None)
-        enhancer._upsampler = mock_upsampler
-
-        result = enhancer.enhance(small_image)
+        enhancer = Enhancer(max_strength=0.15)
+        result = enhancer.enhance(bright_frame, reference=reference)
 
         assert result is not None
-        # Verify upsampler received original size (converted to RGB)
-        call_args = mock_upsampler.enhance.call_args[0][0]
-        assert call_args.shape[0] == small_image.shape[0]
+        # Should return original resolution
+        assert result.shape == bright_frame.shape
 
-    def test_enhance_blends_with_original(self) -> None:
-        """Test that enhancement blends with original when blend < 1."""
-        enhancer = Enhancer(
-            target_height=240,
-            upscale_factor=2,
-            enhancement_blend=0.5,  # 50/50 blend
-        )
+    def test_enhance_resizes_reference_if_needed(self) -> None:
+        """Test that reference is resized to match frame."""
+        frame = np.ones((480, 640, 3), dtype=np.uint8) * 50
+        reference = np.ones((720, 1280, 3), dtype=np.uint8) * 150
 
-        test_image = np.ones((120, 160, 3), dtype=np.uint8) * 100
-
-        mock_upsampler = MagicMock()
-        # Return a different colored image
-        mock_enhanced = np.ones((240, 320, 3), dtype=np.uint8) * 200
-        mock_upsampler.enhance.return_value = (mock_enhanced, None)
-        enhancer._upsampler = mock_upsampler
-
-        result = enhancer.enhance(test_image)
+        enhancer = Enhancer()
+        result = enhancer.enhance(frame, reference=reference)
 
         assert result is not None
-        # With 50/50 blend, result should be between original and enhanced
-        # (approximately, due to resize interpolation)
-        mean_value = result.mean()
-        assert 100 < mean_value < 200
-
-    def test_enhance_fallback_on_error(self, test_image: np.ndarray) -> None:
-        """Test that enhance falls back to resize on error."""
-        enhancer = Enhancer(target_height=240, upscale_factor=2)
-
-        mock_upsampler = MagicMock()
-        mock_upsampler.enhance.side_effect = RuntimeError("GPU error")
-        enhancer._upsampler = mock_upsampler
-
-        result = enhancer.enhance(test_image)
-
-        # Should return resized image as fallback
-        assert result is not None
-        assert result.shape[0] == 240
-
-    def test_enhance_no_blend_when_blend_is_one(self) -> None:
-        """Test that no blending occurs when enhancement_blend is 1.0."""
-        enhancer = Enhancer(
-            target_height=240,
-            upscale_factor=2,
-            enhancement_blend=1.0,
-        )
-
-        test_image = np.zeros((120, 160, 3), dtype=np.uint8)
-
-        mock_upsampler = MagicMock()
-        mock_enhanced = np.ones((240, 320, 3), dtype=np.uint8) * 255
-        mock_upsampler.enhance.return_value = (mock_enhanced, None)
-        enhancer._upsampler = mock_upsampler
-
-        result = enhancer.enhance(test_image)
-
-        assert result is not None
-        # Should be all white (enhanced only)
-        assert result.mean() > 250
+        # Output should match frame resolution, not reference
+        assert result.shape == frame.shape
 
 
 class TestEnhancerIntegration:
     """Integration-style tests for Enhancer."""
 
-    def test_full_workflow_without_model(self) -> None:
-        """Test the full workflow fails gracefully without the model."""
-        enhancer = Enhancer()
+    def test_full_workflow(self) -> None:
+        """Test the full enhancement workflow."""
+        # Create test images
+        night_image = np.ones((480, 640, 3), dtype=np.uint8) * 40
+        day_image = np.ones((480, 640, 3), dtype=np.uint8) * 180
+        day_image[::4, ::4, :] = 220  # Add texture
 
-        # Initialize will fail because realesrgan is not installed
-        # (or we mock it to fail)
-        with patch(
-            "webcam_esrgan.enhance._apply_torchvision_workaround",
-            side_effect=ImportError("No realesrgan"),
-        ):
-            result = enhancer.initialize()
-            assert result is False
+        enhancer = Enhancer(max_strength=0.15)
+        result = enhancer.enhance(night_image, reference=day_image)
 
-        # Enhance should return None
-        test_image = np.zeros((480, 640, 3), dtype=np.uint8)
-        result = enhancer.enhance(test_image)
-        assert result is None
+        assert result is not None
+        assert result.shape == (480, 640, 3)  # Original resolution preserved
+        assert result.dtype == np.uint8

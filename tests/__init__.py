@@ -1,1 +1,1 @@
-"""Tests for webcam_esrgan package."""
+"""Tests for webcam_interval_capture package."""

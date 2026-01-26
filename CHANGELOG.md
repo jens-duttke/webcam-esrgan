@@ -7,13 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: Renamed project from `webcam-enhance` to `webcam-interval-capture`
+  - Package renamed from `webcam_esrgan` to `webcam_interval_capture`
+  - CLI command renamed from `webcam-enhance` to `webcam-interval-capture`
+- **BREAKING**: Complete replacement of Real-ESRGAN with DWT-based detail transfer
+  - No more GPU requirements (CPU-only, works everywhere)
+  - No model downloads required
+  - Much faster processing (seconds vs minutes)
+  - Transfers high-frequency details from daytime reference to nighttime images
+  - Auto-strength based on image brightness (dark images get more enhancement)
+- **BREAKING**: AVIF files now saved in original resolution (4K), JPEG resized to target_height
+  - AVIF history serves as high-quality archive
+  - No separate archive directory needed for originals
+- New configuration options for detail transfer enhancement:
+  - `ENHANCE_MAX_STRENGTH`: Maximum strength for dark images (default 0.15)
+  - `ENHANCE_BRIGHTNESS_THRESHOLD`: Only enhance below this brightness (default 0.3)
+  - `ENHANCE_WAVELET`: Wavelet type for DWT (default "db4")
+  - `ENHANCE_LEVELS`: DWT decomposition levels (default 3)
+  - `ENHANCE_FUSION_MODE`: Fusion method - "weighted" or "max_energy" (default "weighted")
+- New reference image settings for detail transfer:
+  - `REFERENCE_PATH`: Fixed reference image path (optional, leave empty for auto-select)
+  - `REFERENCE_DIR`: Directory for auto-selected references (default "archive")
+  - `REFERENCE_HOUR`: Hour to select reference from (default 12/noon)
+- Preview window can now be closed without exiting the program
+  - Press `w` to reopen the window after closing it
+  - Program continues running in background, capturing and enhancing images
+
+### Removed
+
+- Real-ESRGAN, basicsr, and PyTorch dependencies
+- GPU/CUDA support (no longer needed)
+- Tile-based processing (no longer needed)
+- `ENHANCEMENT_BLEND`, `TILE_SIZE`, `MAX_DOWNSCALE_FACTOR` configuration options
+
+### Added
+
+- PyWavelets dependency for DWT-based image fusion
+- Reference manager for daytime reference image selection
+- Automatic reference image selection from previous day's noon capture
+
+## [1.1.1] - 2026-01-26
+
 ### Added
 
 - Zoom and focus control before image capture (`CAMERA_ZOOM`, `CAMERA_FOCUS`, `CAMERA_FOCUS_TOLERANCE` env vars)
-  - Automatically verifies zoom/focus settings match expected values before each capture
-  - Adjusts camera zoom/focus via Reolink API if values are incorrect
-  - Skips capture and waits for next interval if adjustment times out (30 seconds)
-  - Focus tolerance allows for acceptable deviation in focus position
+
+### Changed
+
+- Skip AI model initialization when `ENHANCEMENT_BLEND=0` (faster startup, no GPU memory used)
 
 ## [1.1.0] - 2026-01-22
 

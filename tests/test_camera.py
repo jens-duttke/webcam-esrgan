@@ -1,4 +1,4 @@
-"""Tests for webcam_esrgan.camera module."""
+"""Tests for webcam_interval_capture.camera module."""
 
 import json
 from unittest.mock import MagicMock, patch
@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from webcam_esrgan.camera import Camera, ZoomFocusState
-from webcam_esrgan.config import CameraConfig
+from webcam_interval_capture.camera import Camera, ZoomFocusState
+from webcam_interval_capture.config import CameraConfig
 
 
 class TestCamera:
@@ -61,7 +61,7 @@ class TestCamera:
         assert camera._ssl_context.check_hostname is False
         assert camera._ssl_context.verify_mode == ssl.CERT_NONE
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_fetch_snapshot_success(
         self,
         mock_urlopen: MagicMock,
@@ -87,7 +87,7 @@ class TestCamera:
         assert result.shape == (100, 100, 3)
         assert result.dtype == np.uint8
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_fetch_snapshot_returns_none_on_error(
         self,
         mock_urlopen: MagicMock,
@@ -100,7 +100,7 @@ class TestCamera:
 
         assert result is None
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_fetch_snapshot_returns_none_on_invalid_data(
         self,
         mock_urlopen: MagicMock,
@@ -178,7 +178,7 @@ class TestCameraZoomFocus:
         """Create a test camera instance."""
         return Camera(camera_config)
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_api_request_success(
         self,
         mock_urlopen: MagicMock,
@@ -197,7 +197,7 @@ class TestCameraZoomFocus:
 
         assert result == response_data
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_api_request_returns_none_on_error(
         self,
         mock_urlopen: MagicMock,
@@ -210,7 +210,7 @@ class TestCameraZoomFocus:
 
         assert result is None
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_get_zoom_focus_success(
         self,
         mock_urlopen: MagicMock,
@@ -243,7 +243,7 @@ class TestCameraZoomFocus:
         assert result.zoom_pos == 25
         assert result.focus_pos == 224
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_get_zoom_focus_returns_none_on_api_error(
         self,
         mock_urlopen: MagicMock,
@@ -268,7 +268,7 @@ class TestCameraZoomFocus:
 
         assert result is None
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_set_zoom_focus_focus_only(
         self,
         mock_urlopen: MagicMock,
@@ -294,7 +294,7 @@ class TestCameraZoomFocus:
         assert sent_data[0]["param"]["ZoomFocus"]["op"] == "FocusPos"
         assert sent_data[0]["param"]["ZoomFocus"]["pos"] == 224
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_set_zoom_focus_both(
         self,
         mock_urlopen: MagicMock,
@@ -323,7 +323,7 @@ class TestCameraZoomFocus:
         assert sent_data[0]["param"]["ZoomFocus"]["op"] == "FocusPos"
         assert sent_data[1]["param"]["ZoomFocus"]["op"] == "ZoomPos"
 
-    @patch("webcam_esrgan.camera.urllib.request.urlopen")
+    @patch("webcam_interval_capture.camera.urllib.request.urlopen")
     def test_set_zoom_focus_returns_false_on_error(
         self,
         mock_urlopen: MagicMock,
@@ -386,7 +386,7 @@ class TestCameraZoomFocus:
 
         assert result is True
 
-    @patch("webcam_esrgan.camera.time.sleep")
+    @patch("webcam_interval_capture.camera.time.sleep")
     @patch.object(Camera, "set_zoom_focus")
     @patch.object(Camera, "get_zoom_focus")
     def test_ensure_zoom_focus_adjusts_and_succeeds(
@@ -410,7 +410,7 @@ class TestCameraZoomFocus:
         mock_set.assert_called_once_with(zoom=25, focus=224)
         mock_sleep.assert_called_once_with(1)
 
-    @patch("webcam_esrgan.camera.time.sleep")
+    @patch("webcam_interval_capture.camera.time.sleep")
     @patch.object(Camera, "set_zoom_focus")
     @patch.object(Camera, "get_zoom_focus")
     def test_ensure_zoom_focus_timeout(

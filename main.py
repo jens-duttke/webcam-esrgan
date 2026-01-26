@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Webcam Enhancement with Real-ESRGAN
+Webcam Enhancement with DWT Detail Transfer
 
-Captures snapshots from IP cameras and enhances image quality
-using Real-ESRGAN AI upscaling.
+Captures snapshots from IP cameras and enhances image quality by
+transferring high-frequency details from daytime reference images.
 """
 
 from __future__ import annotations
@@ -12,18 +12,19 @@ import signal
 import sys
 import time
 from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
-from webcam_esrgan.camera import Camera
-from webcam_esrgan.config import Config
-from webcam_esrgan.enhance import Enhancer
-from webcam_esrgan.image import add_timestamp, save_images
-from webcam_esrgan.sftp import SFTPUploader
+from webcam_interval_capture.archive import ReferenceManager
+from webcam_interval_capture.camera import Camera
+from webcam_interval_capture.config import Config
+from webcam_interval_capture.enhance import Enhancer
+from webcam_interval_capture.image import save_images
+from webcam_interval_capture.sftp import SFTPUploader
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -157,7 +158,7 @@ class PreviewState:
 
 
 def signal_handler(_signum: int, _frame: object) -> None:
-    """Handles Ctrl+C cleanly without Fortran errors."""
+    """Handles Ctrl+C cleanly."""
     global shutdown_requested
     shutdown_requested = True
     print("\n\nShutting down...")
@@ -228,18 +229,22 @@ def main() -> int:
 
     # Print banner
     print("=" * 50)
-    print("Webcam Enhancement with Real-ESRGAN")
+    print("Webcam Enhancement with DWT Detail Transfer")
     print("=" * 50)
     print(f"Camera: {config.camera.ip} (Channel {config.camera.channel})")
     print(f"Target resolution: {config.target_height}p")
+    print(f"Output: JPEG={config.target_height}p, AVIF=original resolution")
     print(
-        f"Upscale factor: {config.upscale_factor}x "
-        f"(Pre-shrink to {config.target_height // config.upscale_factor}p)"
+        f"Enhancement: max_strength={config.enhance.max_strength}, "
+        f"wavelet={config.enhance.wavelet}"
     )
-    print(
-        f"AI blend: {int(config.enhancement_blend * 100)}% AI / "
-        f"{int((1 - config.enhancement_blend) * 100)}% Original"
-    )
+    if config.reference.path:
+        print(f"Reference: {config.reference.path} (fixed)")
+    else:
+        print(
+            f"Reference: auto-select from {config.reference.directory}/ "
+            f"(hour {config.reference.hour})"
+        )
     if config.sftp.enabled:
         print(f"SFTP upload: {config.sftp.host}:{config.sftp.path}")
     else:
@@ -258,21 +263,21 @@ def main() -> int:
     camera = Camera(config.camera)
     sftp = SFTPUploader(config.sftp, config.retention_days, config.capture_interval)
 
-    # Initialize Real-ESRGAN (skip if enhancement_blend is 0)
-    enhancer: Enhancer | None = None
-    if config.enhancement_blend > 0:
-        enhancer = Enhancer(
-            target_height=config.target_height,
-            upscale_factor=config.upscale_factor,
-            enhancement_blend=config.enhancement_blend,
-            tile_size=config.tile_size,
-            max_downscale_factor=config.max_downscale_factor,
-        )
-        if not enhancer.initialize():
-            print("\nCould not load Real-ESRGAN. Exiting.")
-            return 1
-    else:
-        print("AI enhancement disabled (ENHANCEMENT_BLEND=0), skipping model load.")
+    # Initialize enhancer
+    enhancer = Enhancer(
+        max_strength=config.enhance.max_strength,
+        brightness_threshold=config.enhance.brightness_threshold,
+        wavelet=config.enhance.wavelet,
+        levels=config.enhance.levels,
+        fusion_mode=config.enhance.fusion_mode,
+    )
+
+    # Initialize reference manager for detail transfer
+    reference_manager = ReferenceManager(
+        archive_dir=Path(config.reference.directory),
+        fixed_reference_path=config.reference.path,
+        reference_hour=config.reference.hour,
+    )
 
     # Test camera connection
     print("Testing camera connection...")
@@ -290,7 +295,7 @@ def main() -> int:
         print("\nPress Ctrl+C to exit.\n")
 
     # Create preview window
-    window_name = "Real-ESRGAN Enhanced Webcam"
+    window_name = "Webcam Enhancement"
     preview = PreviewState(window_name)
 
     def check_window_closed() -> None:
@@ -369,63 +374,25 @@ def main() -> int:
                 timestamp_now = capture_time.strftime("%H:%M:%S.%f")[:-3]
                 print(f"  Image captured at {timestamp_now}")
 
-                # Process image (enhance with AI or just resize)
-                if enhancer is not None:
-                    # Enhance with Real-ESRGAN in background thread
-                    # This keeps the UI responsive during processing
-                    with ThreadPoolExecutor(max_workers=1) as executor:
-                        future: Future[NDArray[np.uint8] | None] = executor.submit(
-                            enhancer.enhance, frame
-                        )
+                # Get reference image for detail transfer
+                reference = reference_manager.get_reference()
 
-                        # Keep UI responsive while processing
-                        while not future.done():
-                            if config.show_preview:
-                                check_window_closed()
-                                preview.update_display()
-                                key = cv2.waitKey(50) & 0xFF
-                                if key == ord("q") or key == 27:
-                                    shutdown_requested = True
-                                elif (
-                                    key == ord("w")
-                                    and not preview.window_visible
-                                    and preview.window_initialized
-                                ):
-                                    preview.reopen_window()
-                            else:
-                                time.sleep(0.05)
-
-                            if shutdown_requested:
-                                # Can't cancel PyTorch, but we can exit after it finishes
-                                print("\n  Finishing current operation...")
-                                break
-
-                        processed = future.result()
-                else:
-                    # No enhancement - just resize to target height
-                    h, w = frame.shape[:2]
-                    scale = config.target_height / h
-                    new_w = int(w * scale)
-                    processed = cv2.resize(
-                        frame,
-                        (new_w, config.target_height),
-                        interpolation=cv2.INTER_LANCZOS4,
-                    )
-                    print(f"  Resized to {new_w}x{config.target_height} (no AI)")
+                # Process image (enhance with detail transfer)
+                print("Processing image...")
+                processed = enhancer.enhance(frame, reference)
 
                 if processed is not None:
-                    # Add timestamp overlay for JPEG only (use capture time)
-                    with_timestamp = add_timestamp(
-                        processed, config.timestamp_format, capture_time
-                    )
-
                     # Update preview frames atomically (both at once)
                     preview.original_frame = frame
-                    preview.enhanced_frame = with_timestamp
+                    preview.enhanced_frame = processed
 
-                    # Save images (JPEG with timestamp, AVIF without)
+                    # Save images (JPEG resized with timestamp, AVIF original resolution)
                     current_jpg, current_avif, timestamped = save_images(
-                        with_timestamp, processed, config.image, capture_time
+                        processed,
+                        config.image,
+                        config.target_height,
+                        config.timestamp_format,
+                        capture_time,
                     )
 
                     # Upload via SFTP

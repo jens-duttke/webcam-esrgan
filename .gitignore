@@ -32,8 +32,8 @@ htmlcov/
 .coverage
 coverage.xml
 
-# Real-ESRGAN model weights (large, downloaded automatically)
-weights/
+# Archive directory (original captures)
+archive/
 
 # Output images
 images/
@@ -45,9 +45,13 @@ images/
 # IDE
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Other
+private/
