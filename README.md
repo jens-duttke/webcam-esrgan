@@ -203,11 +203,13 @@ webcam-interval-capture
 
 ### Preview Controls
 
+In preview window:
 - **Click and hold**: Show original image
 - **Spacebar**: Toggle between original/enhanced
-- **Q or ESC**: Exit program
-- **X button**: Close preview (program continues)
-- **W**: Reopen preview window
+
+In terminal:
+- **q**: Exit program
+- **w**: Reopen preview window (after closing with X)
 
 ## Workflow
 

@@ -32,6 +32,7 @@ dependencies = [
     "Pillow>=10.0.0",
     "pillow-avif-plugin>=1.4.0",
     "PyWavelets>=1.4.0",
+    "keyboard>=0.13.5",
 ]
 
 [project.optional-dependencies]
@@ -92,6 +93,7 @@ module = [
     "pillow_avif.*",
     "paramiko.*",
     "pywt.*",
+    "keyboard.*",
 ]
 ignore_missing_imports = true
 

@@ -13,6 +13,9 @@ pillow-avif-plugin>=1.4.0
 # Wavelet transform for detail transfer
 PyWavelets>=1.4.0
 
+# Terminal keyboard input
+keyboard>=0.13.5
+
 # SFTP upload (optional)
 paramiko>=3.0.0
 

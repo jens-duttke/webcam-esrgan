@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import cv2
+import keyboard
 import numpy as np
 
 from webcam_interval_capture.archive import ReferenceManager
@@ -290,9 +291,9 @@ def main() -> int:
     print(f"Connection successful! Image size: {width}x{height}")
 
     if config.show_preview:
-        print("\nPress 'q' or Ctrl+C to exit. Close window with X, reopen with 'w'.\n")
+        print("\nKeys: 'q' = quit, 'w' = reopen window (in window: Space = toggle)\n")
     else:
-        print("\nPress Ctrl+C to exit.\n")
+        print("\nPress 'q' or Ctrl+C to exit.\n")
 
     # Create preview window
     window_name = "Webcam Enhancement"
@@ -310,22 +311,19 @@ def main() -> int:
 
     def handle_keyboard() -> bool:
         """Handle keyboard input. Returns True if exit requested."""
-        if not config.show_preview:
-            return False
+        # Process OpenCV events and window keyboard input
+        if config.show_preview and preview.window_visible:
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord(" "):  # Space toggles original/enhanced (window only)
+                preview.toggle_original()
+                preview.update_display()
 
-        # Always process keyboard, even when window is closed (to allow reopening)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q") or key == 27:  # 'q' or ESC
+        # Check terminal keyboard input (q and w)
+        if keyboard.is_pressed("q"):
             return True
-        if key == ord(" "):  # Spacebar toggles original/enhanced
-            preview.toggle_original()
-            preview.update_display()
-        if (
-            key == ord("w")
-            and not preview.window_visible
-            and preview.window_initialized
-        ):  # 'w' reopens window if closed
+        if keyboard.is_pressed("w") and not preview.window_visible:
             preview.reopen_window()
+            time.sleep(0.2)  # Debounce
         return False
 
     def should_exit() -> bool:
