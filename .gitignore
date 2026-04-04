@@ -53,5 +53,9 @@ images/
 .DS_Store
 Thumbs.db
 
+# Rsync temp files
+webcam_log.tmp.json
+
 # Other
 private/
+cwrsync/

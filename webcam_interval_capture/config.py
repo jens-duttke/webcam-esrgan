@@ -67,6 +67,23 @@ class EnhanceConfig:
 
 
 @dataclass
+class RsyncConfig:
+    """Rsync over SSH upload settings."""
+
+    host: str | None = None
+    port: int = 22
+    user: str | None = None
+    ssh_key: str | None = None
+    path: str | None = None
+    bin_path: str | None = None
+
+    @property
+    def enabled(self) -> bool:
+        """Returns True if all rsync settings are configured."""
+        return all([self.host, self.user, self.ssh_key, self.path])
+
+
+@dataclass
 class ReferenceConfig:
     """Reference image settings for detail transfer."""
 
@@ -82,6 +99,7 @@ class Config:
 
     camera: CameraConfig
     sftp: SFTPConfig = field(default_factory=SFTPConfig)
+    rsync: RsyncConfig = field(default_factory=RsyncConfig)
     image: ImageConfig = field(default_factory=ImageConfig)
     enhance: EnhanceConfig = field(default_factory=EnhanceConfig)
     reference: ReferenceConfig = field(default_factory=ReferenceConfig)
@@ -158,6 +176,14 @@ class Config:
                 user=os.getenv("SFTP_USER"),
                 password=os.getenv("SFTP_PASSWORD"),
                 path=os.getenv("SFTP_PATH"),
+            ),
+            rsync=RsyncConfig(
+                host=os.getenv("RSYNC_HOST"),
+                port=int(os.getenv("RSYNC_PORT", "22")),
+                user=os.getenv("RSYNC_USER"),
+                ssh_key=parse_optional_str("RSYNC_SSH_KEY"),
+                path=os.getenv("RSYNC_REMOTE_PATH"),
+                bin_path=parse_optional_str("RSYNC_BIN_PATH"),
             ),
             image=ImageConfig(
                 jpeg_quality=int(os.getenv("JPEG_QUALITY", "80")),

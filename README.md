@@ -28,6 +28,7 @@ Instead of using AI to generate synthetic details (like traditional super-resolu
   - AVIF: Original resolution (4K) for archive/history
   - JPEG: Resized with timestamp for web display
 - Optional SFTP upload for web publishing
+- Optional rsync over SSH upload (can be used alongside SFTP for multi-server distribution)
 - Live preview window with original/enhanced comparison
 - Configurable capture intervals aligned to clock
 
@@ -44,13 +45,13 @@ git clone https://github.com/jens-duttke/webcam-interval-capture.git
 cd webcam-interval-capture
 
 # Create virtual environment
-python -m venv venv
+python -m venv .venv
 
 # Activate (Windows)
-venv\Scripts\activate
+.venv\Scripts\activate
 
 # Activate (Linux/macOS)
-source venv/bin/activate
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -182,6 +183,26 @@ Leave `SFTP_HOST` empty to disable upload.
 | `SFTP_PASSWORD` | `password` | SFTP password |
 | `SFTP_PATH` | `/httpdocs/webcam` | Remote directory path |
 
+### Rsync over SSH Upload (optional)
+
+Upload files via rsync using SSH key authentication. Leave `RSYNC_HOST` empty to disable.
+
+When both SFTP and rsync are configured, both methods are used - this allows distributing images to different servers simultaneously.
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `RSYNC_HOST` | `stardust.uberspace.de` | SSH server hostname |
+| `RSYNC_PORT` | `22` | SSH port |
+| `RSYNC_USER` | `isabell` | SSH username |
+| `RSYNC_SSH_KEY` | `C:/Users/me/.ssh/deploy_key` | Path to private SSH key (without passphrase) |
+| `RSYNC_REMOTE_PATH` | `.` | Remote directory path (with `rrsync`: relative to its base directory, e.g. `.`) |
+| `RSYNC_BIN_PATH` | `C:/cwrsync/bin` | Directory containing `rsync` and `ssh` binaries (default: resolved from `PATH`) |
+
+**Prerequisites:**
+- An SSH key pair set up on the remote server (see [Uberspace deployment guide](https://lab.uberspace.de/howto_automatic-deployment/) for an example setup)
+- `rsync` installed on both local and remote machines
+- **Windows users:** rsync is not included with Windows. Install [cwRsync](https://github.com/itefixnet/cwrsync-client/tree/main) and set `RSYNC_BIN_PATH` to the cwRsync `bin` directory (e.g., `C:/cwrsync/bin`). Both `rsync.exe` and `ssh.exe` will be resolved from this directory.
+
 ## Output Files
 
 | File | Format | Description |
@@ -195,8 +216,8 @@ Leave `SFTP_HOST` empty to disable upload.
 
 ```bash
 # Activate virtual environment first
-venv\Scripts\activate      # Windows
-source venv/bin/activate   # Linux/macOS
+.venv\Scripts\activate      # Windows
+source .venv/bin/activate   # Linux/macOS
 
 # Run the application
 python main.py
@@ -208,7 +229,7 @@ To always run the latest version with updated dependencies, create a `start.cmd`
 
 ```cmd
 @echo off
-call venv\Scripts\activate.bat
+call .venv\Scripts\activate.bat
 git pull --ff-only || (echo Update failed - local changes? & pause & exit /b 1)
 pip install -q -r requirements.txt
 python main.py
@@ -234,8 +255,9 @@ In terminal:
 6. Saves JPEG (resized to `TARGET_HEIGHT` with timestamp)
 7. Saves AVIF (original resolution, no timestamp) for history
 8. Uploads to SFTP server (if configured)
-9. Cleans up images older than `RETENTION_DAYS`
-10. Updates `webcam_log.json` with file list
+9. Uploads via rsync over SSH (if configured)
+10. Cleans up images older than `RETENTION_DAYS`
+11. Updates `webcam_log.json` with file list
 
 ## Algorithm
 
@@ -267,6 +289,7 @@ webcam-interval-capture/
 │   ├── config.py               # Configuration management
 │   ├── enhance.py              # DWT detail transfer
 │   ├── image.py                # Image processing/saving
+│   ├── rsync.py                # Rsync over SSH upload
 │   └── sftp.py                 # SFTP upload
 ├── tests/                      # Test suite
 ├── images/                     # Output images (created automatically)
@@ -281,16 +304,16 @@ webcam-interval-capture/
 pip install pytest pytest-cov ruff mypy
 
 # Run tests
-Scripts/python -m pytest -v
+.venv/Scripts/python -m pytest -v
 
 # Lint
-Scripts/python -m ruff check .
+.venv/Scripts/python -m ruff check .
 
 # Format
-Scripts/python -m ruff format .
+.venv/Scripts/python -m ruff format .
 
 # Type check
-Scripts/python -m mypy webcam_interval_capture/
+.venv/Scripts/python -m mypy webcam_interval_capture/
 ```
 
 ## License

@@ -205,6 +205,7 @@ class TestConfig:
         # Reference settings
         assert config.reference.hour == 14
 
+    @patch("webcam_interval_capture.config.load_dotenv")
     @patch.dict(
         os.environ,
         {
@@ -214,7 +215,7 @@ class TestConfig:
         },
         clear=True,
     )
-    def test_from_env_uses_defaults(self) -> None:
+    def test_from_env_uses_defaults(self, _mock_load_dotenv: MagicMock) -> None:
         """Test that from_env uses defaults for missing optional settings."""
         config = Config.from_env()
 

@@ -25,6 +25,7 @@ from webcam_interval_capture.camera import Camera
 from webcam_interval_capture.config import Config
 from webcam_interval_capture.enhance import Enhancer
 from webcam_interval_capture.image import save_images
+from webcam_interval_capture.rsync import RsyncUploader
 from webcam_interval_capture.sftp import SFTPUploader
 
 if TYPE_CHECKING:
@@ -45,7 +46,7 @@ class PreviewState:
         self.original_frame: NDArray[np.uint8] | None = None
         self.enhanced_frame: NDArray[np.uint8] | None = None
         self.window_name = window_name
-        self.aspect_ratio: float | None = None
+        self.aspect_ratio: float = 0.0
         self.window_initialized = False
         self.window_visible = False
 
@@ -250,6 +251,12 @@ def main() -> int:
         print(f"SFTP upload: {config.sftp.host}:{config.sftp.path}")
     else:
         print("SFTP upload: disabled")
+    if config.rsync.enabled:
+        print(
+            f"Rsync upload: {config.rsync.user}@{config.rsync.host}:{config.rsync.path}"
+        )
+    else:
+        print("Rsync upload: disabled")
     if config.camera.zoom is not None or config.camera.focus is not None:
         zoom_str = str(config.camera.zoom) if config.camera.zoom is not None else "-"
         focus_str = (
@@ -263,6 +270,7 @@ def main() -> int:
     # Initialize components
     camera = Camera(config.camera)
     sftp = SFTPUploader(config.sftp, config.retention_days, config.capture_interval)
+    rsync = RsyncUploader(config.rsync, config.retention_days, config.capture_interval)
 
     # Initialize enhancer
     enhancer = Enhancer(
@@ -396,6 +404,16 @@ def main() -> int:
                     # Upload via SFTP
                     if config.sftp.enabled:
                         sftp.sync(
+                            [
+                                (str(current_jpg), current_jpg.name),
+                                (str(current_avif), current_avif.name),
+                                (str(timestamped), timestamped.name),
+                            ]
+                        )
+
+                    # Upload via rsync
+                    if config.rsync.enabled:
+                        rsync.sync(
                             [
                                 (str(current_jpg), current_jpg.name),
                                 (str(current_avif), current_avif.name),

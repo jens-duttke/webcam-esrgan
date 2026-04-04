@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import pillow_avif  # noqa: F401 - registers AVIF codec with Pillow
+import pillow_avif  # noqa: F401 - registers AVIF codec with Pillow  # pyright: ignore[reportUnusedImport,reportMissingTypeStubs]
 from PIL import Image
 
 

@@ -48,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reference manager for daytime reference image selection
 - Automatic reference image selection from previous day's capture in `OUTPUT_DIR`
 - AVIF format support for reference images (via pillow-avif-plugin)
+- Rsync over SSH upload as alternative to SFTP (`RSYNC_HOST`, `RSYNC_PORT`, `RSYNC_USER`, `RSYNC_SSH_KEY`, `RSYNC_REMOTE_PATH`)
+  - Uses SSH key authentication (no password required)
+  - Both SFTP and rsync can be active simultaneously for multi-server distribution
+  - Includes remote cleanup and `webcam_log.json` generation
 
 ## [1.1.1] - 2026-01-26
 

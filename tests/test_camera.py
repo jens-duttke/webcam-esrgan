@@ -1,5 +1,7 @@
 """Tests for webcam_interval_capture.camera module."""
 
+# pyright: reportPrivateUsage=false
+
 import json
 from unittest.mock import MagicMock, patch
 

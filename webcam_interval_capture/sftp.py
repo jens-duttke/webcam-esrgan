@@ -51,6 +51,11 @@ class SFTPUploader:
         try:
             import paramiko
 
+            assert self.config.host is not None
+            assert self.config.user is not None
+            assert self.config.password is not None
+            assert self.config.path is not None
+
             transport = paramiko.Transport((self.config.host, self.config.port))
             transport.connect(
                 username=self.config.user,
@@ -62,7 +67,7 @@ class SFTPUploader:
                 print("  SFTP Error: Could not create SFTP client")
                 return False
 
-            remote_dir = self.config.path.rstrip("/")  # type: ignore[union-attr]
+            remote_dir = self.config.path.rstrip("/")
 
             try:
                 self._upload_files(sftp, files_to_upload, remote_dir)
