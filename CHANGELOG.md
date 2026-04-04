@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-04
+
+### Added
+
+- PyWavelets dependency for DWT-based image fusion
+- Reference manager for daytime reference image selection
+- Automatic reference image selection from previous day's capture in `OUTPUT_DIR`
+- AVIF format support for reference images (via pillow-avif-plugin)
+- Zoom and focus control before image capture (`CAMERA_ZOOM`, `CAMERA_FOCUS`, `CAMERA_FOCUS_TOLERANCE` env vars)
+- Rsync over SSH upload as alternative to SFTP (`RSYNC_HOST`, `RSYNC_PORT`, `RSYNC_USER`, `RSYNC_SSH_KEY`, `RSYNC_REMOTE_PATH`)
+  - Uses SSH key authentication (no password required)
+  - Both SFTP and rsync can be active simultaneously for multi-server distribution
+  - Includes remote cleanup and `webcam_log.json` generation
+
 ### Changed
 
 - **BREAKING**: Renamed project from `webcam-enhance` to `webcam-interval-capture`
@@ -41,27 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GPU/CUDA support (no longer needed)
 - Tile-based processing (no longer needed)
 - `ENHANCEMENT_BLEND`, `TILE_SIZE`, `MAX_DOWNSCALE_FACTOR` configuration options
-
-### Added
-
-- PyWavelets dependency for DWT-based image fusion
-- Reference manager for daytime reference image selection
-- Automatic reference image selection from previous day's capture in `OUTPUT_DIR`
-- AVIF format support for reference images (via pillow-avif-plugin)
-- Rsync over SSH upload as alternative to SFTP (`RSYNC_HOST`, `RSYNC_PORT`, `RSYNC_USER`, `RSYNC_SSH_KEY`, `RSYNC_REMOTE_PATH`)
-  - Uses SSH key authentication (no password required)
-  - Both SFTP and rsync can be active simultaneously for multi-server distribution
-  - Includes remote cleanup and `webcam_log.json` generation
-
-## [1.1.1] - 2026-01-26
-
-### Added
-
-- Zoom and focus control before image capture (`CAMERA_ZOOM`, `CAMERA_FOCUS`, `CAMERA_FOCUS_TOLERANCE` env vars)
-
-### Changed
-
-- Skip AI model initialization when `ENHANCEMENT_BLEND=0` (faster startup, no GPU memory used)
 
 ## [1.1.0] - 2026-01-22
 
